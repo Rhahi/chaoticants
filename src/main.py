@@ -4,6 +4,7 @@ import ant
 
 def progress_time():
     ants = []
+    colonies = []
     
     for ant in ants:
         pass
