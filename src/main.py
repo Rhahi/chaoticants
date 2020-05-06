@@ -1,5 +1,5 @@
 # the main program that runs and animates the and behaviour
-import ant
+from ant import Realm, Ant, Colony
 import animator
 
 def progress_time(realm, colonies):
@@ -9,12 +9,11 @@ def progress_time(realm, colonies):
 
         colony.do()
         colony.update()
-
     realm.update()
 
 if __name__ == "__main__":
-    realm = ant.Realm()
-    colony = ant.Colony(realm=realm, nest_position=(0,0), starting_ants = 100)
+    realm = Realm()
+    colony = Colony(realm=realm, nest_position=(0,0), starting_ants = 100)
     colonies = [colony] # there is only one colony for now.
     animator.plot(realm, colonies) # first plot
     
