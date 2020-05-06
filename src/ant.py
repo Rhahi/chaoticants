@@ -88,9 +88,9 @@ class Ant(Entity):
 
         self.next_states["position"] = next_position
 
-    def make_phermones(self):
-        # create phermone in current position.
-        # design decision: make phermone entity? or create a realm-map and leave phermone number on there?
+    def make_pheromones(self):
+        # create pheromone in current position.
+        # design decision: make pheromone entity? or create a realm-map and leave pheromone number on there?
         pass
 
     def grab(self):
@@ -112,9 +112,9 @@ class Realm():
         self.offset = np.array([2500, 2500]) #now, treat coordinate 0, 0 as 5000, 5000
         self.evaporate_rate = 0.7 # TODO fix magic number
 
-    def phermone(self, coordinate):
+    def pheromone(self, coordinate):
         """
-        add phermone to the marked position in the realm.
+        add pheromone to the marked position in the realm.
         the coordinates must be integers.
         Beware that float will be converted to integers.
         """
@@ -127,11 +127,11 @@ class Realm():
 
     def update(self):
         """
-        reduces the phermone exponentially.
+        reduces the pheromone exponentially.
         """
         self.land = np.dot(self.land, self.evaporate_rate) # exponential decay
-        self.land += self.next_land # add newly added phermones
-        self.next_land = np.zeros(self.land.shape) # reset the next phermones array
+        self.land += self.next_land # add newly added pheromones
+        self.next_land = np.zeros(self.land.shape) # reset the next pheromones array
         self.time += self.time_increment
 
 
