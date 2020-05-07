@@ -48,7 +48,7 @@ class Ant(Entity):
         next_position = None
         time = self.nest.realm.time
 
-        def paper_walk():
+        def paper_walk(y):
             """
             some parameters are mentioned in the paper:
             mu: a positive constant. The system is chaotic when mu=3.
@@ -61,12 +61,13 @@ class Ant(Entity):
             """
             raise NotImplementedError("Need to figure out what these variable should be")
 
-            V = None # I have no idea what kind of number V should have. Should be incorporated into the state dictionary.
-            y = None
-            a = None
-            b = None
-            w = None
-            psi = None
+            V = 0 # I have no idea what kind of number V should have. Should be incorporated into the state dictionary.
+            r = 0.1
+            y = y**(r+1)
+            a = 10 #just grabbing a number out of thin air to get started
+            b = log(2)
+            w = 0.2
+            psi = 7
 
             food_position = None
             next_position = (
@@ -74,7 +75,7 @@ class Ant(Entity):
                 - V
                 + np.exp(2*a*y+b) * (np.abs(np.sin(w*time)) * (food_position - self.nest.position) * (p - self.nest.position))
             )
-            return next_position
+            return next_position,y
 
         def straight_walk():
             #walks in a straight diagonal line. Used for initial testing purposes.
