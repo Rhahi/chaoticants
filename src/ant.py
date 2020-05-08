@@ -155,6 +155,7 @@ class Colony(Entity):
 
         # add newborn ants to the roster
         self.ants += self.new_ants
+        self.new_ants = []
 
         # update the state variables related to the nest itself
         super(Colony, self).update()

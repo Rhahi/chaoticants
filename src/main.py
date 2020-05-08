@@ -18,6 +18,6 @@ if __name__ == "__main__":
     animator.plot(realm, colonies) # first plot
     
     for _ in range(5):
-        input() # for debuging purposes, this progresses when enter is pressed.
+        #input() # for debuging purposes, this progresses when enter is pressed.
         progress_time(realm, colonies)
         animator.plot(realm, colonies)
