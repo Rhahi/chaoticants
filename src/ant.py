@@ -1,5 +1,38 @@
 import numpy as np
 
+class Realm():
+    def __init__(self):
+        self.time = 0
+        self.time_increment = 1 # the amount of time to progress per tick.
+
+        self.land = np.zeros((5000, 5000)) #for now, define the limit of the area in this.
+        self.next_land = np.zeros(self.land.shape)
+
+        self.offset = np.array([2500, 2500]) #now, treat coordinate 0, 0 as 2500, 2500
+        self.evaporate_rate = 0.7 # TODO fix magic number
+
+    def pheromone(self, coordinate):
+        """
+        add pheromone to the marked position in the realm.
+        the coordinates must be integers.
+        Beware that float will be converted to integers.
+        """
+        c = coordinate + self.offset
+        assert (c < np.array([5000,5000])).all()
+        y = int(c[0])
+        x = int(c[1])
+        
+        self.next_land[y,x] += 1
+
+    def update(self):
+        """
+        reduces the pheromone exponentially.
+        """
+        self.land = np.dot(self.land, self.evaporate_rate) # exponential decay
+        self.land += self.next_land # add newly added pheromones
+        self.next_land = np.zeros(self.land.shape) # reset the next pheromones array
+        self.time += self.time_increment
+
 class Entity():
     def __init__(self, realm):
         self.realm = realm
@@ -46,7 +79,7 @@ class Ant(Entity):
         """
         p = self.states["position"]
         next_position = None
-        time = self.nest.realm.time
+        time = self.realm.time
 
         def paper_walk(y):
             """
@@ -65,7 +98,7 @@ class Ant(Entity):
             r = 0.1
             y = y**(r+1)
             a = 10 #just grabbing a number out of thin air to get started
-            b = log(2)
+            b = np.log(2)
             w = 0.2
             psi = 7
 
@@ -75,11 +108,7 @@ class Ant(Entity):
                 - V
                 + np.exp(2*a*y+b) * (np.abs(np.sin(w*time)) * (food_position - self.nest.position) * (p - self.nest.position))
             )
-            return next_position,y
-
-        def straight_walk():
-            #walks in a straight diagonal line. Used for initial testing purposes.
-            return p + np.array([1,1])
+            return next_position, y
 
         def random_walk():
             #walks randomly. Used for initial testing purposes. Walk distance is [0...1)
@@ -101,41 +130,6 @@ class Ant(Entity):
     def retrieve(self):
         # drop the food, and increase the food stored in the colony
         pass
-
-class Realm():
-    def __init__(self):
-        self.time = 0
-        self.time_increment = 1 # the amount of time to progress per tick.
-
-        self.land = np.zeros((5000, 5000)) #for now, define the limit of the area in this.
-        self.next_land = np.zeros(self.land.shape)
-
-        self.offset = np.array([2500, 2500]) #now, treat coordinate 0, 0 as 5000, 5000
-        self.evaporate_rate = 0.7 # TODO fix magic number
-
-    def pheromone(self, coordinate):
-        """
-        add pheromone to the marked position in the realm.
-        the coordinates must be integers.
-        Beware that float will be converted to integers.
-        """
-        c = coordinate + self.offset
-        assert (c < np.array([5000,5000])).all()
-        y = int(c[0])
-        x = int(c[1])
-        
-        self.next_land[y,x] += 1
-
-    def update(self):
-        """
-        reduces the pheromone exponentially.
-        """
-        self.land = np.dot(self.land, self.evaporate_rate) # exponential decay
-        self.land += self.next_land # add newly added pheromones
-        self.next_land = np.zeros(self.land.shape) # reset the next pheromones array
-        self.time += self.time_increment
-
-
 
 class Colony(Entity):
     def __init__(self, realm, nest_position, faction=0, starting_ants=0):
@@ -199,6 +193,7 @@ class Colony(Entity):
 
         # add newborn ants to the roster
         self.ants += self.new_ants
+        self.new_ants = []
 
         # update the state variables related to the nest itself
         super(Colony, self).update()
