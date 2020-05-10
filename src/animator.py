@@ -12,10 +12,10 @@ def plot(realm, colonies):
     colors = [xkcd["xkcd:azure"], xkcd["xkcd:orange"], xkcd["xkcd:green"], xkcd["xkcd:red"],
         xkcd["xkcd:purple"], xkcd["xkcd:sienna"], xkcd["xkcd:pink"], xkcd["xkcd:cyan"], xkcd["xkcd:magenta"]]
     
-    plt.figure(figsize=(10,10))
+    plt.figure()
     plt.title("Ant positions")
-    plt.xlim(-1,4)
-    plt.ylim(-1,4)
+    plt.xlim(2495, 2505)
+    plt.ylim(2495, 2505)
 
     data = retrieve_ant_positions(colonies)
     for i, pos in enumerate(data):

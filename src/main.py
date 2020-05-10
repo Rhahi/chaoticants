@@ -13,7 +13,7 @@ def progress_time(realm, colonies):
 
 if __name__ == "__main__":
     realm = Realm()
-    colony = Colony(realm=realm, nest_position=(0,0), starting_ants = 100)
+    colony = Colony(realm=realm, nest_position=(2500,2500), starting_ants = 100)
     colonies = [colony] # there is only one colony for now.
     animator.plot(realm, colonies) # first plot
     

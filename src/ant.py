@@ -1,40 +1,51 @@
 import numpy as np
+from queue import SimpleQueue
+from enum import Enum
+
+class Food():
+    def __init__(self, position, amount):
+        self.position = position
+        self.amount = amount
+
+    def take(self, amount):
+        taken = min(self.amount - amount, amount)
+        self.amount -= taken
+        return taken
 
 class Realm():
     """
     The world where our ants and nests live in.
     Time is defined here, so that we don't need to define a global time variable.
     """
-    def __init__(self):
+    def __init__(self, size=(5000,5000)):
         self.time = 0
         self.time_increment = 1 # the amount of time to progress per tick.
-
-        self.land = np.zeros((5000, 5000)) #for now, define the limit of the area in this.
-        self.next_land = np.zeros(self.land.shape)
-
-        self.offset = np.array([2500, 2500]) #now, treat coordinate 0, 0 as 2500, 2500
-        self.evaporate_rate = 0.7 # TODO fix magic number
-
-    def pheromone(self, coordinate):
-        """
-        add pheromone to the marked position in the realm.
-        the coordinates must be integers.
-        Beware that float will be converted to integers.
-        """
-        c = coordinate + self.offset
-        assert (c < np.array([5000,5000])).all()
-        y = int(c[0])
-        x = int(c[1])
         
-        self.next_land[y,x] += 1
+        self.land = np.zeros(size)
+        self.next_land_queue = SimpleQueue()
+
+        self.evaporate_rate = 0.7 # TODO fix magic number
+        self.food_list = []
+
+    def spawn_food(self, position, amount):
+        self.food_list.append(Food(position, amount))
+
+    def check_boundary(self, position):
+        p = np.array(position)
+        if (p > self.land.shape).any() or (p < np.array([0,0])).any():
+            return False
+        else:
+            return True
 
     def update(self):
         """
         reduces the pheromone exponentially.
         """
         self.land = np.dot(self.land, self.evaporate_rate) # exponential decay
-        self.land += self.next_land # add newly added pheromones
-        self.next_land = np.zeros(self.land.shape) # reset the next pheromones array
+        while not self.next_land_queue.empty():
+            p, a = self.next_land_queue.get()
+            self.land[p] += a
+        
         self.time += self.time_increment
 
 class Entity():
@@ -51,28 +62,59 @@ class Entity():
         pass
 
     def update(self):
-        # update all the pending state changes, and set the future states undefined.
-        # if the future state is undefined, that means nothing will be changed.
+        """
+        update all the pending state changes, and set the future states undefined.
+        if the future state is undefined, that means nothing will be changed.
+        """
         for key in self.states:
             if self.next_states[key] is not None:
                 self.states[key] = self.next_states[key]
                 self.next_states[key] = None
+
+class AntModes(Enum):
+    searching = 1
+    returning = 2
 
 class Ant(Entity):
     def __init__(self, nest):
         super(Ant, self).__init__(nest.realm)
         self.birth_time = self.realm.time #can be used to determine the age of the ant
         self.nest = nest #pointer to the nest object.
+
+        # constants to be tuned
+        self.grab_amount = 10
+        self.pheromone_amount = 2
         
+        # states of the ant
         self._create_state("position", np.array(nest.position))
-        self._create_state("fatigue", 0)
+        #self._create_state("fatigue", 0) # fatigue is turned off as it does nothing right now.
+        self._create_state("food", 0)
+
+        self.mode = AntModes.searching
 
     def do(self):
         """
         defines the core behaviour of the ant, including foraging, homing, etc.
         """
-        self.walk() #testing purposes
-        self.next_states["fatigue"] = self.states["fatigue"] + 1
+        if self.mode == AntModes.searching:
+            food = self.search_food()
+            if food:
+                self.grab(food)
+                self.mode = AntModes.returning
+            else:
+                self.walk()
+                # TODO: make ants consider pheromones.
+
+        elif self.mode == AntModes.returning:
+            if self.at_home():
+                self.drop()
+                self.mode = AntModes.searching
+            else:
+                self.make_pheromones()
+                self.walk()
+            # TODO: make ants properly return home, instead of just walking randomly again.
+
+        #self.next_states["fatigue"] = self.states["fatigue"] + 1
 
     def walk(self):
         """
@@ -81,61 +123,64 @@ class Ant(Entity):
         """
         p = self.states["position"]
         next_position = None
-        time = self.realm.time
-
-        def paper_walk(y):
-            """
-            some parameters are mentioned in the paper:
-            mu: a positive constant. The system is chaotic when mu=3.
-            yi: Indicates the degree of chaotic crawling. This is between 0 and 1. larger -> more chaos
-            ri: self-organisation factor. 
-            Vi: the serach region of ant i
-            w : used to adjust the frequency of ants' periodic oscillation between the nest and the food source
-            a : sufficiently-large positive constant to amplify yi.
-            b : local search factor. Controls the local optimal path strategy.
-            psi: adjusts search range
-            """
-            raise NotImplementedError("Need to figure out what these variable should be")
-
-            V = 0 # I have no idea what kind of number V should have. Should be incorporated into the state dictionary.
-            r = 0.1
-            y = y**(r+1)
-            a = 10 #just grabbing a number out of thin air to get started
-            b = np.log(2)
-            w = 0.2
-            psi = 7
-
-            food_position = None
-            next_position = (
-                (p + V) * np.exp( (1-np.exp(a*y)) * (3-psi*(p+V)) )
-                - V
-                + np.exp(2*a*y+b) * (np.abs(np.sin(w*time)) * (food_position - self.nest.position) * (p - self.nest.position))
-            )
-            return next_position, y
+        #time = self.realm.time
 
         def random_walk():
             #walks randomly. Used for initial testing purposes. Walk distance is [0...1)
             return p + np.random.rand(2)
 
         next_position = random_walk()
-
-        self.next_states["position"] = next_position
+        if self.realm.check_boundary(next_position):
+            self.next_states["position"] = next_position
+        else:
+            raise IndexError("The ant has escaped the map")
 
     def make_pheromones(self):
         # create pheromone in current position.
-        # design decision: make pheromone entity? or create a realm-map and leave pheromone number on there?
-        pass
+        p = tuple(self.states["position"].astype(int))
+        self.realm.next_land_queue.put(p, self.pheromone_amount)
 
-    def grab(self):
-        # reduce the amount of food in current position, ant is now holding the food
-        pass
+    def at_home(self):
+        if np.linalg.norm(self.states["position"] - self.nest.position) < self.nest.range:
+            return True
+        else: return False
 
-    def retrieve(self):
+    def search_food(self):
+        """
+        Looks for food in the nearby region.
+        This method loops through all the food in the list, checks if it is nearby, and take it.
+        """
+        p = self.states["position"]
+        for food in self.realm.food_list:
+            location = food.position
+            dist = np.linalg.norm(p - location)
+            if dist < np.sqrt(food.amount):
+                return food
+        return 0
+
+    def sniff(self):
+        """
+        senses nearby pheromone and returns the gradient
+        the magnitude of the gradient indicates that the pheromone is strong.
+        """
+        raise NotImplementedError
+
+    def grab(self, food):
+        """
+        reduces the amount of food in current position, ant is now holding the food
+        requires that the food object was already chosen. Use search_food to check food in nearby region.
+        """
+        grabbed = food.take(self.grab_amount)
+        self.next_states["food"] = grabbed
+
+    def drop(self):
         # drop the food, and increase the food stored in the colony
-        pass
+        self.nest.new_food += self.states["food"]
+        self.next_states["food"] = 0
+        
 
 class Colony(Entity):
-    def __init__(self, realm, nest_position, starting_ants=0):
+    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0):
         """
         [static states]
         position: the position of the nest on the map
@@ -151,13 +196,15 @@ class Colony(Entity):
         super(Colony, self).__init__(realm)
         #static states
         self.position = np.array(nest_position)
+        self.range = 10 # MAGIC NUMBER; the distance it is considered for ants to be "home"
 
         #children entities
         self.ants = []
         self.new_ants = []
 
         #variable states
-        #self._create_state("stored-food", 0) # not used in this simulation
+        self.food = starting_food
+        self.new_food = 0
 
         #starts with given number of ants
         for _ in range(starting_ants):
@@ -174,10 +221,10 @@ class Colony(Entity):
         this is used to map the ants and the nest on the map
         """
         number_of_ants = len(self.ants)
-        coordinates = np.zeros((number_of_ants, 2))
+        positions = np.zeros((number_of_ants, 2))
         for i, ant in enumerate(self.ants):
-            coordinates[i] = ant.states["position"]
-        return coordinates, self.position
+            positions[i] = ant.states["position"]
+        return positions, self.position
 
     def do(self):
         """
@@ -197,7 +244,8 @@ class Colony(Entity):
         self.new_ants = []
 
         # update the state variables related to the nest itself
-        super(Colony, self).update()
+        self.food += self.new_food
+        self.new_food = 0
 
     def spawn_ant(self):
         # add newborn ants to the list to be added during the next update tick
