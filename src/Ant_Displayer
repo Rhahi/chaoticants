@@ -1,0 +1,29 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from ant import Ant, Colony, Realm
+
+fig, ax = plt.subplots(1,1)
+
+
+def draw_all_ants(ants):
+    [plt.scatter(ant1.states["position"][0],Ant.states["position"][1],c='k') for Ant in ants]
+    
+    plt.draw()
+    
+
+if __name__ == "__main__":
+    realm = Realm()
+    Thecolony = Colony(realm, (0,0))
+    ant1 = Ant(Thecolony)
+    ant1.states["food_position"] = (0.3,0,4)
+    #ant2 = Ant(TheColony)
+    ant1.states["position"] = (2,1)
+    ants = [ant1]
+
+    for n in range(150):
+        for Ant in ants:
+            Ant.do()
+            Ant.update()
+        realm.update()
+        draw_all_ants(ants)
+        plt.pause(0.005)
