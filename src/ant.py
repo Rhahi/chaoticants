@@ -16,7 +16,7 @@ class Food():
         return (self.position[0], self.position[1])
 
     def get_heading(self):
-        return 0
+        return 0.25
 
 class Realm():
     """
