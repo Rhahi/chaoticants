@@ -2,14 +2,14 @@ import pygame as pg
 import numpy as np
 import random
 import sys
-
+import pdb
 
 class Camera:
     #  TODO: make controls depend on time between draws to unlink from frame rate
     def __init__(self, screensize = (1024,800), scrollspeed = 800):
         self.screensize = screensize
         self.aspect = screensize[0] / screensize[1]
-        self.zoomlevel = 20  # how many integer points to fit on x-axis
+        self.zoomlevel = 200  # how many integer points to fit on x-axis
         self.middle = np.array((0.0, 0.0))
         self.previous_mouse_motion = None
         self.scrollspeed = scrollspeed # higher is slower
@@ -77,29 +77,38 @@ class PygameVisualizer:
         """
         pg.init()
         pg.display.set_caption("Ants")
+        self.sprites = {}
         self.running = True
         self.tickrate = tickrate
         self.clock = pg.time.Clock()
         self.camera = Camera(screensize)
         self.screen = pg.display.set_mode(screensize)
-        self.entities = []
-        for target in targets:
-            entities, sprite = target
-            sprite = pg.image.load(sprite).convert_alpha()
-            for ent in entities:
-                ent.pygamesprite = sprite
-                self.entities.append(ent)
+        self.targets = targets
 
-    def __draw(self):
+    def __draw_pheromones(self, realm):
+        xleft, xright, ytop, ybottom = map(int, self.camera.get_world_coordinate_bounds())
+        for pos, strength in np.ndenumerate(realm.land[xleft+1:xright-1,ytop+1:ybottom-1]):
+            pos = (pos[0] + xleft+1, pos[1] + ytop+1)
+            if strength>0:
+                color = pg.Color("blue")
+
+                pg.draw.rect(self.screen, color, pg.Rect(self.camera.world_to_screen_coordinate(pos), (3,3)))
+
+    def __draw(self, realm=None):
         self.screen.fill((12, 156, 20))
         xleft, xright, ytop, ybottom = self.camera.get_world_coordinate_bounds()
-        for ent in self.entities:
-            x, y = ent.get_position()
-            if x > xleft and x < xright and y > ytop and y < ybottom:
-                pos = self.camera.world_to_screen_coordinate((x, y))
-                scaled = pg.transform.scale(ent.pygamesprite, self.camera.get_zoom())
-                rotated = pg.transform.rotate(scaled, ((270 + ent.get_heading()*360) % 360))
-                self.screen.blit(rotated, pos)
+        if realm:
+            self.__draw_pheromones(realm)
+        for entities, sprite in self.targets:
+            if sprite not in self.sprites:
+                self.sprites[sprite] = pg.image.load(sprite).convert_alpha()
+            for ent in entities:
+                x, y = ent.get_position()
+                if x > xleft and x < xright and y > ytop and y < ybottom:
+                    pos = self.camera.world_to_screen_coordinate((x, y))
+                    scaled = pg.transform.scale(self.sprites[sprite], self.camera.get_zoom())
+                    rotated = pg.transform.rotate(scaled, ((270 + ent.get_heading()*360) % 360))
+                    self.screen.blit(rotated, pos)
         pg.display.update()
 
     def __handle_events(self):
@@ -113,19 +122,19 @@ class PygameVisualizer:
             else:
                 self.camera.handle_event(event)
 
-    def step_frame(self):
+    def step_frame(self, realm=None):
         self.__handle_events()
-        self.__draw()
+        self.__draw(realm)
         self.clock.tick(self.tickrate)
 
-    def run(self, updatefunc):
+    def run(self, updatefunc, realm=None):
         """ Starts the visualizer, calling updatefunc once between every draw """
         if not callable(updatefunc):
             raise ValueError("updatefunc must be callable")
         while self.running:
             self.__handle_events()
-            self.__draw()
-            updatefunc(self.entities)
+            self.__draw(realm)
+            updatefunc(self.targets)
             self.clock.tick(self.tickrate)
 
 
@@ -154,4 +163,4 @@ if __name__ == "__main__":
     entities[0].y = 0
     pgv = PygameVisualizer([(entities, "ant.png")]) #suggested ant: https://www.flaticon.com/free-icon/ant_355680
     #pgv = PygameVisualizer([(ants, "ant.png"), (colonies, "col.jpg"), (pheros, "pheromone.gif")]) <-- example of one way to initalize the class
-    pgv.run(lambda ents: [ent.walk() for ent in ents])
+    pgv.run(lambda targets: [ent.walk() for target in targets for ent in target[0]])
