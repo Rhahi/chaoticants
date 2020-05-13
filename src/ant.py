@@ -17,11 +17,12 @@ class Realm():
     The world where our ants and nests live in.
     Time is defined here, so that we don't need to define a global time variable.
     """
-    def __init__(self, size=(5000,5000)):
+    def __init__(self, size):
         self.time = 0
         self.time_increment = 1 # the amount of time to progress per tick.
         
         self.land = np.zeros(size)
+        self.gradient = np.gradient(self.land)
         self.next_land_queue = SimpleQueue()
 
         self.evaporate_rate = 0.7 # TODO fix magic number
@@ -45,7 +46,7 @@ class Realm():
         while not self.next_land_queue.empty():
             p, a = self.next_land_queue.get()
             self.land[p] += a
-        
+        self.gradient = np.gradient(self.land)
         self.time += self.time_increment
 
 class Entity():
@@ -76,7 +77,7 @@ class AntModes(Enum):
     returning = 2
 
 class Ant(Entity):
-    def __init__(self, nest):
+    def __init__(self, nest, chaotic_constant = 3):
         super(Ant, self).__init__(nest.realm)
         self.birth_time = self.realm.time #can be used to determine the age of the ant
         self.nest = nest #pointer to the nest object.
@@ -84,12 +85,16 @@ class Ant(Entity):
         # constants to be tuned
         self.grab_amount = 10
         self.pheromone_amount = 2
+        self.heading = np.random.rand(1)
+        self.walk_speed = 1
+        self.chaotic_constant = chaotic_constant
+        self.smell_range = 10
+        self.smell_threshold = 2
         
         # states of the ant
         self._create_state("position", np.array(nest.position))
         #self._create_state("fatigue", 0) # fatigue is turned off as it does nothing right now.
         self._create_state("food", 0)
-
         self.mode = AntModes.searching
 
     def do(self):
@@ -116,20 +121,41 @@ class Ant(Entity):
 
         #self.next_states["fatigue"] = self.states["fatigue"] + 1
 
+    def pheromone_gradient(self):
+        """
+        retrieves pheromone gradient in current position
+        returns magnitude of the gradient and direction (exponent form)
+        """
+        p = tuple(self.states["position"].astype(int))
+        grad_x = self.realm.gradient[0][p]
+        grad_y = self.realm.gradient[1][p]
+
+        g = grad_x + grad_y * 1j
+        mag = np.linalg.norm(g)
+        if mag > 0:
+            return mag, np.log(g/mag) * -1j # TODO figure out exact formula for this
+        else:
+            return mag, 0
+
     def walk(self):
+        def logistic(x):
+            return 1 / ( 1 + np.e ** (-1 * (x - self.smell_threshold)) )
         """
             considering the current state of the and the surroundings, the ant can walk through the realm.
             this will set its next position state, which gets updated when update() is called.
         """
-        p = self.states["position"]
-        next_position = None
-        #time = self.realm.time
+        pheromone_mag, pheromone_heading = self.pheromone_gradient()
 
-        def random_walk():
-            #walks randomly. Used for initial testing purposes. Walk distance is [0...1)
-            return p + np.random.rand(2)
+        self.heading = (
+                self.chaotic_constant * self.heading * (1 - self.heading)
+                + self.nest.noise * np.random.rand(1)
+            )
+        self.heading = (pheromone_heading * logistic(pheromone_mag) + self.heading * (1 - logistic(pheromone_mag)))
 
-        next_position = random_walk()
+        h_rotation = np.e ** (2j * np.pi * self.heading)
+        h = np.array([h_rotation.real[0], h_rotation.imag[0]])
+        next_position = self.states["position"] + h * self.walk_speed
+        
         if self.realm.check_boundary(next_position):
             self.next_states["position"] = next_position
         else:
@@ -180,7 +206,7 @@ class Ant(Entity):
         
 
 class Colony(Entity):
-    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0):
+    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0, noise=0):
         """
         [static states]
         position: the position of the nest on the map
@@ -197,6 +223,7 @@ class Colony(Entity):
         #static states
         self.position = np.array(nest_position)
         self.range = 10 # MAGIC NUMBER; the distance it is considered for ants to be "home"
+        self.noise = noise # how much noise to inject to the chaotic function.
 
         #children entities
         self.ants = []
