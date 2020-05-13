@@ -12,6 +12,12 @@ class Food():
         self.amount -= taken
         return taken
 
+    def get_position(self):
+        return (self.position[0], self.position[1])
+
+    def get_heading(self):
+        return 0
+
 class Realm():
     """
     The world where our ants and nests live in.
@@ -45,8 +51,9 @@ class Realm():
         self.land = np.dot(self.land, self.evaporate_rate) # exponential decay
         while not self.next_land_queue.empty():
             p, a = self.next_land_queue.get()
+            #mport pdb; pdb.set_trace()
             self.land[p] += a
-        self.gradient = np.gradient(self.land)
+        #self.gradient = np.gradient(self.land)
         self.time += self.time_increment
 
 class Entity():
@@ -71,13 +78,23 @@ class Entity():
             if self.next_states[key] is not None:
                 self.states[key] = self.next_states[key]
                 self.next_states[key] = None
+    
+    def get_position(self):
+        if "position" in self.states:
+            return (self.states["position"][0], self.states["position"][1])
+        else:
+            raise ValueError("undefined position")
+
+    def get_heading(self):
+        return 0.25
+
 
 class AntModes(Enum):
     searching = 1
     returning = 2
 
 class Ant(Entity):
-    def __init__(self, nest, chaotic_constant = 3):
+    def __init__(self, nest, chaotic_constant = 4):
         super(Ant, self).__init__(nest.realm)
         self.birth_time = self.realm.time #can be used to determine the age of the ant
         self.nest = nest #pointer to the nest object.
@@ -86,6 +103,7 @@ class Ant(Entity):
         self.grab_amount = 10
         self.pheromone_amount = 2
         self.heading = np.random.rand(1)
+        self.turning = np.random.rand(1) / 10
         self.walk_speed = 1
         self.chaotic_constant = chaotic_constant
         self.smell_range = 10
@@ -108,7 +126,6 @@ class Ant(Entity):
                 self.mode = AntModes.returning
             else:
                 self.walk()
-                # TODO: make ants consider pheromones.
 
         elif self.mode == AntModes.returning:
             if self.at_home():
@@ -138,22 +155,30 @@ class Ant(Entity):
             return mag, 0
 
     def walk(self):
-        def logistic(x):
-            return 1 / ( 1 + np.e ** (-1 * (x - self.smell_threshold)) )
+        
         """
             considering the current state of the and the surroundings, the ant can walk through the realm.
             this will set its next position state, which gets updated when update() is called.
         """
+        def logistic(x):
+            return 1 / ( 1 + np.e ** (-1 * (x - self.smell_threshold)) )
         pheromone_mag, pheromone_heading = self.pheromone_gradient()
 
-        self.heading = (
-                self.chaotic_constant * self.heading * (1 - self.heading)
-                + self.nest.noise * np.random.rand(1)
-            )
-        self.heading = (pheromone_heading * logistic(pheromone_mag) + self.heading * (1 - logistic(pheromone_mag)))
+        # amount for ants to turn from current heading
+        self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
+
+        # final heading. Div 4 means restricting chaotic movement to 90 degrees.
+        self.heading += (
+            (1 - self.nest.noise) * (self.turning - 0.5)
+            + self.nest.noise * (np.random.rand(1) - 0.5)
+        ) / 4
+
+        # TODO: correct heading using pheromone.
+        #self.heading = (pheromone_heading * logistic(pheromone_mag) + self.heading * (1 - logistic(pheromone_mag)))
+
 
         h_rotation = np.e ** (2j * np.pi * self.heading)
-        h = np.array([h_rotation.real[0], h_rotation.imag[0]])
+        h = np.array([h_rotation.imag[0], h_rotation.real[0]])
         next_position = self.states["position"] + h * self.walk_speed
         
         if self.realm.check_boundary(next_position):
@@ -164,7 +189,7 @@ class Ant(Entity):
     def make_pheromones(self):
         # create pheromone in current position.
         p = tuple(self.states["position"].astype(int))
-        self.realm.next_land_queue.put(p, self.pheromone_amount)
+        self.realm.next_land_queue.put((p, self.pheromone_amount))
 
     def at_home(self):
         if np.linalg.norm(self.states["position"] - self.nest.position) < self.nest.range:
@@ -203,6 +228,9 @@ class Ant(Entity):
         # drop the food, and increase the food stored in the colony
         self.nest.new_food += self.states["food"]
         self.next_states["food"] = 0
+
+    def get_heading(self):
+        return self.heading
         
 
 class Colony(Entity):
@@ -277,3 +305,6 @@ class Colony(Entity):
     def spawn_ant(self):
         # add newborn ants to the list to be added during the next update tick
         self.new_ants.append(Ant(self))
+
+    def get_position(self):
+        return (self.position[0], self.position[1])
