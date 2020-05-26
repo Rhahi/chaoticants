@@ -3,6 +3,7 @@ from ant import Realm, Ant, Colony
 from pygamevisualizer import PygameVisualizer
 import numpy as np
 import random
+import antmath
 
 def spawn_food(realm, count):
     for _ in range(count):
@@ -22,8 +23,9 @@ def progress_time(realm, colonies):
 
 if __name__ == "__main__":
     realm = Realm(size=(1000, 1000))
-    spawn_food(realm, count=100)
-    colony = Colony(realm=realm, nest_position=(500,500), starting_ants = 10)
+    antmath.build_antmath_matrix(50, 50)
+    spawn_food(realm, count=200)
+    colony = Colony(realm=realm, nest_position=(500,500), starting_ants = 20)
     colonies = [colony] # there is only one colony for now.
     
     pgv = PygameVisualizer([(realm.food_list, "food.png")] + [(colonies, "home.png")] + [(colony.ants, "ant.png") for colony in colonies] )

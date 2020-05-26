@@ -1,4 +1,5 @@
 import numpy as np
+import antmath
 from queue import SimpleQueue
 from enum import Enum
 
@@ -96,18 +97,18 @@ class AntModes(Enum):
 class Ant(Entity):
     def __init__(self, nest, chaotic_constant = 4):
         super(Ant, self).__init__(nest.realm)
+        assert antmath.sniffmatrix is not None, "Antmath matrix was not initialised!"
         self.birth_time = self.realm.time #can be used to determine the age of the ant
         self.nest = nest #pointer to the nest object.
 
         # constants to be tuned
         self.grab_amount = 10
         self.pheromone_amount = 2
-        self.heading = np.random.rand(1)
-        self.turning = np.random.rand(1) / 10
+        self.heading = np.random.rand()
+        self.turning = np.random.rand() / 10
         self.walk_speed = 1
         self.chaotic_constant = chaotic_constant
-        self.smell_range = 10
-        self.smell_threshold = 2
+        self.smell_range = 25
         
         # states of the ant
         self._create_state("position", np.array(nest.position))
@@ -155,31 +156,37 @@ class Ant(Entity):
             return mag, 0
 
     def walk(self):
-        
         """
             considering the current state of the and the surroundings, the ant can walk through the realm.
             this will set its next position state, which gets updated when update() is called.
         """
-        def logistic(x):
-            return 1 / ( 1 + np.e ** (-1 * (x - self.smell_threshold)) )
-        pheromone_mag, pheromone_heading = self.pheromone_gradient()
-
+        def imag_to_array(d):
+            return np.array([d.imag, d.real])
+            
         # amount for ants to turn from current heading
         self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
 
-        # final heading. Div 4 means restricting chaotic movement to 90 degrees.
+        # intermediate heading. Div 4 means restricting chaotic movement to 90 degrees.
         self.heading += (
-            (1 - self.nest.noise) * (self.turning - 0.5)
-            + self.nest.noise * (np.random.rand(1) - 0.5)
+            (1 - self.nest.noise) * (self.turning * 4 / self.chaotic_constant - 0.5)
+            + self.nest.noise * (np.random.rand() - 0.5)
         ) / 4
 
-        # TODO: correct heading using pheromone.
-        #self.heading = (pheromone_heading * logistic(pheromone_mag) + self.heading * (1 - logistic(pheromone_mag)))
-
-
         h_rotation = np.e ** (2j * np.pi * self.heading)
-        h = np.array([h_rotation.imag[0], h_rotation.real[0]])
-        next_position = self.states["position"] + h * self.walk_speed
+        h_base = imag_to_array(h_rotation)
+
+        raw_sniff, mag_sniff = self.sniff()
+        if self.mode == AntModes.searching and mag_sniff > 0.1:
+            dir_sniff = raw_sniff / mag_sniff
+            d_base = imag_to_array(dir_sniff)
+
+            #w = antmath.logistic(x=mag_sniff, x0=10, L=0.7, k=0.1)
+            w = 0 #FIXME ant follows the first pioneers trail, not the trail towards the food. research ACO and nature.
+            h = np.add(h_base*(1-w), d_base*w)
+        else:
+            h = h_base
+
+        next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
         
         if self.realm.check_boundary(next_position):
             self.next_states["position"] = next_position
@@ -213,8 +220,18 @@ class Ant(Entity):
         """
         senses nearby pheromone and returns the gradient
         the magnitude of the gradient indicates that the pheromone is strong.
+
+        returns imaginary direction of the deterimined "strongest smell"
+        refer to antmath.py for detailed implementation of the sniffmatrix.
         """
-        raise NotImplementedError
+        p = self.states["position"].astype(int)
+        left, right = p[0] - self.smell_range, p[0] + self.smell_range
+        top, bottom = p[1] - self.smell_range, p[1] + self.smell_range
+        current_slice = self.realm.land[left:right, top:bottom]
+        
+        raw_matrix = np.multiply(current_slice, antmath.sniffmatrix)
+        raw_sum = np.sum(raw_matrix)
+        return raw_sum, np.linalg.norm(raw_sum)
 
     def grab(self, food):
         """
