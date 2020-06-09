@@ -32,7 +32,7 @@ class Realm():
         self.gradient = np.gradient(self.land)
         self.next_land_queue = SimpleQueue()
 
-        self.evaporate_rate = 0.7 # TODO fix magic number
+        self.evaporate_rate = 1.5 # TODO fix magic number
         self.food_list = []
 
     def spawn_food(self, position, amount):
@@ -157,34 +157,58 @@ class Ant(Entity):
 
     def walk(self):
         """
-            considering the current state of the and the surroundings, the ant can walk through the realm.
+            considering the current state of the ant the surroundings, the ant can walk through the realm.
             this will set its next position state, which gets updated when update() is called.
         """
         def imag_to_array(d):
             return np.array([d.imag, d.real])
-            
-        # amount for ants to turn from current heading
-        self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
 
+        #if self.state["food"]:
+
+        #else:    
+            # amount for ants to turn from current heading
+        chaotic_constant = self.chaotic_constant
+
+        if self.states["food"]:
+            chaotic_constant = 1.1
+
+        #turnnoise = self.nest.noise*(np.random.rand() - 0.5)
+        #if 0 < self.turning < 1/2:
+        #    self.turning = chaotic_constant*self.turning + turnnoise
+        #else:
+        #    self.turning = min(chaotic_constant*(1-self.turning) + turnnoise, 1)
+
+            
+            
+            
+        self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
         # intermediate heading. Div 4 means restricting chaotic movement to 90 degrees.
         self.heading += (
-            (1 - self.nest.noise) * (self.turning * 4 / self.chaotic_constant - 0.5)
-            + self.nest.noise * (np.random.rand() - 0.5)
-        ) / 4
+        (1 - self.nest.noise) * (self.turning * 4 / self.chaotic_constant - 0.5)                + self.nest.noise * (np.random.rand() - 0.5)
+        ) / 4  
 
         h_rotation = np.e ** (2j * np.pi * self.heading)
         h_base = imag_to_array(h_rotation)
 
-        raw_sniff, mag_sniff = self.sniff()
-        if self.mode == AntModes.searching and mag_sniff > 0.1:
-            dir_sniff = raw_sniff / mag_sniff
-            d_base = imag_to_array(dir_sniff)
+        if self.mode == AntModes.searching:
+            raw_sniff, mag_sniff = self.sniff()
+            if mag_sniff > 0.1:
+                dir_sniff = raw_sniff / mag_sniff
+                d_base = imag_to_array(dir_sniff)
+                print(d_base)
 
-            #w = antmath.logistic(x=mag_sniff, x0=10, L=0.7, k=0.1)
-            w = 0 #FIXME ant follows the first pioneers trail, not the trail towards the food. research ACO and nature.
-            h = np.add(h_base*(1-w), d_base*w)
+                #w = antmath.logistic(x=mag_sniff, x0=10, L=0.7, k=0.1)
+                w = 0.5 #FIXME ant follows the first pioneers trail, not the trail towards the food. research ACO and nature.
+
+                h = np.add(h_base*(1-w), d_base*w)
+            else:
+                h = h_base
         else:
-            h = h_base
+            w = 0.06 #FIXME ant follows the first pioneers trail, not the trail towards the food. research ACO and nature.
+
+            d_base = self.states["position"]-self.nest.position
+            h = np.add(h_base*(1-w),-d_base*w)
+            
 
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
         
@@ -251,7 +275,7 @@ class Ant(Entity):
         
 
 class Colony(Entity):
-    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0, noise=0):
+    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0, noise=0.03):
         """
         [static states]
         position: the position of the nest on the map
