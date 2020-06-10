@@ -104,13 +104,15 @@ class Ant(Entity):
         # constants to be tuned
         self.grab_amount = 10
         self.pheromone_amount = 2
-        self.heading = np.random.rand()
-        self.turning = np.random.rand() / 10
         self.walk_speed = 1
         self.chaotic_constant = chaotic_constant
         self.smell_range = 25
+        self.threshold_sniff = 1
+        self.mix_home = 0.5
         
         # states of the ant
+        self.heading = np.random.rand()
+        self.turning = np.random.rand() / 10
         self._create_state("position", np.array(nest.position))
         #self._create_state("fatigue", 0) # fatigue is turned off as it does nothing right now.
         self._create_state("food", 0)
@@ -154,7 +156,6 @@ class Ant(Entity):
             return mag, np.log(g/mag) * -1j # TODO figure out exact formula for this
         else:
             return mag, 0
-
     def walk(self):
         """
             considering the current state of the and the surroundings, the ant can walk through the realm.
@@ -162,36 +163,53 @@ class Ant(Entity):
         """
         def imag_to_array(d):
             return np.array([d.imag, d.real])
-            
-        # amount for ants to turn from current heading
+
+        def mix(*argv):
+            mix_sum = 0
+            mag_sum = 0
+            for m in argv:
+                value, magnitude = m
+                mix_sum += value * magnitude
+                mag_sum += magnitude
+
+            if mag_sum != 1.: raise ValueError("Mixing magnitudes should sum up to 1.")
+            return mix_sum
+
+        # chaotic turning
         self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
 
         # intermediate heading. Div 4 means restricting chaotic movement to 90 degrees.
-        self.heading += (
-            (1 - self.nest.noise) * (self.turning * 4 / self.chaotic_constant - 0.5)
-            + self.nest.noise * (np.random.rand() - 0.5)
-        ) / 4
+        c_base = self.turning * 4 / self.chaotic_constant - 0.5
+        r_base = np.random.rand() - 0.5
+        h_base = mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 4 
+        self.heading += h_base # basic "noise" injection from the previous heading.
 
-        h_rotation = np.e ** (2j * np.pi * self.heading)
-        h_base = imag_to_array(h_rotation)
+        if self.mode == AntModes.searching:
+            raw_sniff, mag_sniff = self.sniff()
+            if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
+                # not implemented yet.
+                intensity = 0 #FIXME
+                s_base = 0 #FIXME
+                self.heading = mix([self.heading, 1-intensity], [s_base, intensity])
 
-        raw_sniff, mag_sniff = self.sniff()
-        if self.mode == AntModes.searching and mag_sniff > 0.1:
-            dir_sniff = raw_sniff / mag_sniff
-            d_base = imag_to_array(dir_sniff)
+        elif self.mode == AntModes.returning: # when heading home, ants know where the home is.
+            self.heading = mix([self.direction_to_home(), self.mix_home], [self.heading, 1-self.mix_home])
+            
 
-            #w = antmath.logistic(x=mag_sniff, x0=10, L=0.7, k=0.1)
-            w = 0 #FIXME ant follows the first pioneers trail, not the trail towards the food. research ACO and nature.
-            h = np.add(h_base*(1-w), d_base*w)
-        else:
-            h = h_base
 
+        h = imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
         
+
         if self.realm.check_boundary(next_position):
             self.next_states["position"] = next_position
         else:
             raise IndexError("The ant has escaped the map")
+
+    def direction_to_home(self):
+        p = self.states["position"]
+        h = self.nest.position
+        return antmath.direction_to_exponent(h-p)
 
     def make_pheromones(self):
         # create pheromone in current position.
@@ -268,8 +286,8 @@ class Colony(Entity):
         #static states
         self.position = np.array(nest_position)
         self.range = 10 # MAGIC NUMBER; the distance it is considered for ants to be "home"
-        self.noise = noise # how much noise to inject to the chaotic function.
-
+        self.mix_noise = noise # how much noise to inject to the chaotic function.
+        self.mix_returning = 0.5
         #children entities
         self.ants = []
         self.new_ants = []
