@@ -108,9 +108,47 @@ class Camera:
             if event.key == pg.K_d:
                 self.wasd_state[3] = event.type == pg.KEYDOWN
 
+class Profiler:
+    def __init__(self):
+        self.enabled = False
+        self.start_times = {}
+        self.end_times = {}
+        
+    
+    def start_profiling(self, subject):
+        if not self.enabled:
+            return
+        self.start_times[subject] = pg.time.get_ticks()
+            
+    def end_profiling(self, subject):
+        if not self.enabled:
+            return
+        self.end_times[subject] = pg.time.get_ticks()
+
+    def report_profiling(self):
+        if not self.enabled:
+            return
+
+        times = {}
+        for subject in self.start_times:
+            if subject in self.end_times:
+                times[subject] = self.end_times[subject] - self.start_times[subject]
+
+        if len(times) == 0:
+            print("Want to report profiling but no good data captured")
+            return
+
+        self.data = {}
+        sorted_times = sorted(times.items(), key = lambda t: -t[1])
+        slowest = None
+        for subject, time in sorted_times:
+            if not slowest:
+                slowest = time
+            print(f"Profiling: {subject} took {time} ms which is {(time/slowest):.2%} as slow as the slowest")
+        print()
 
 class PygameVisualizer:
-    def __init__(self, targets, tickrate = 20, screensize = (1024, 800)):
+    def __init__(self, targets, tickrate = 40, screensize = (1024, 800)):
         """ 
         targets is a list of tuples (entity, sprite) of what to draw. entity should have get_position(), and get_heading() functions
         sprites should be pointing to the right
@@ -125,32 +163,49 @@ class PygameVisualizer:
         self.screen = pg.display.set_mode(screensize)
         self.targets = targets
         self.delta = 0
+        self.debug_mode = False
+        self.profiler = Profiler()
+        self.world_bounds = None
 
     def __draw_pheromones(self, realm):
-        xleft, xright, ytop, ybottom = map(int, self.camera.get_world_coordinate_bounds())
+        xleft, xright, ytop, ybottom = map(int, self.world_bounds)
+        #print(f" Drawing x from {xleft} to {xright}\n Drawing y from {ytop} to {ybottom}. Total tiles checked: {(xright-xleft) * (ybottom-ytop)}")
         for pos, strength in np.ndenumerate(realm.land[xleft+1:xright-1,ytop+1:ybottom-1]):
             pos = (pos[0] + xleft+1, pos[1] + ytop+1)
             if strength>0:
-                color = pg.Color("blue")
-
+                color = pg.Color("blue") ""
                 pg.draw.rect(self.screen, color, pg.Rect(self.camera.world_to_screen_coordinate(pos), (3,3)))
 
+    def __is_on_screen(self, pos):
+        xleft, xright, ytop, ybottom = self.world_bounds
+        x, y = pos
+        return x > xleft and x < xright and y > ytop and y < ybottom
+
+
+
     def __draw(self, realm=None):
+        self.profiler.start_profiling("draw")
         self.screen.fill((12, 156, 20))
-        xleft, xright, ytop, ybottom = self.camera.get_world_coordinate_bounds()
         if realm:
+            self.profiler.start_profiling("pheromones")
             self.__draw_pheromones(realm)
+            self.profiler.end_profiling("pheromones")
+            if self.debug_mode:
+                pass
+        self.profiler.start_profiling("entities")
         for entities, sprite in self.targets:
             if sprite not in self.sprites:
                 self.sprites[sprite] = pg.image.load(sprite).convert_alpha()
             for ent in entities:
                 x, y = ent.get_position()
-                if x > xleft and x < xright and y > ytop and y < ybottom:
+                if self.__is_on_screen((x, y)):
                     pos = self.camera.world_to_screen_coordinate((x, y))
                     scaled = pg.transform.scale(self.sprites[sprite], self.camera.get_zoom())
                     rotated = pg.transform.rotate(scaled, ((270 + ent.get_heading()*360) % 360))
                     self.screen.blit(rotated, pos)
+        self.profiler.end_profiling("entities")
         pg.display.update()
+        self.profiler.end_profiling("draw")
 
     def __handle_events(self):
         for event in pg.event.get():
@@ -160,26 +215,23 @@ class PygameVisualizer:
             elif event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 self.running = False
                 sys.exit()
+            elif (event.type == pg.KEYDOWN or event.type == pg.KEYUP) and event.key == pg.K_SPACE:
+                self.debug_mode = event.type == pg.KEYDOWN
+            elif (event.type == pg.KEYDOWN or event.type == pg.KEYUP) and event.key == pg.K_x:
+                self.profiler.enabled = event.type == pg.KEYDOWN
             else:
                 self.camera.handle_event(event)
 
     def tick(self, delta, realm=None):
         self.__handle_events()
+        self.world_bounds = self.camera.get_world_coordinate_bounds()
         self.__draw(realm)
         self.camera.tick(delta)
 
     def step_frame(self, realm=None):
         self.tick(self.delta, realm)
         self.delta = self.clock.tick(self.tickrate)
-
-    def run(self, updatefunc, realm=None):
-        """ Starts the visualizer, calling updatefunc once between every draw """
-        if not callable(updatefunc):
-            raise ValueError("updatefunc must be callable")
-        while self.running:
-            self.tick(self.delta, realm)
-            updatefunc(self.targets)
-            self.delta = self.clock.tick(self.tickrate)
+        self.profiler.report_profiling()
 
 
 class TestEntity:
@@ -207,4 +259,3 @@ if __name__ == "__main__":
     entities[0].y = 0
     pgv = PygameVisualizer([(entities, "ant.png")]) #suggested ant: https://www.flaticon.com/free-icon/ant_355680
     #pgv = PygameVisualizer([(ants, "ant.png"), (colonies, "col.jpg"), (pheros, "pheromone.gif")]) <-- example of one way to initalize the class
-    pgv.run(lambda targets: [ent.walk() for target in targets for ent in target[0]])
