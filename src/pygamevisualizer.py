@@ -4,15 +4,42 @@ import random
 import sys
 import pdb
 
+class CameraOptions:
+    def __init__(self):
+        self.mouse_scroll_speed = 800
+        self.key_scroll_speed = 0.3  # lower is faster
+
 class Camera:
     #  TODO: make controls depend on time between draws to unlink from frame rate
-    def __init__(self, screensize = (1024,800), scrollspeed = 800):
+    def __init__(self, screensize = (1024,800), camera_options = None):
+        if camera_options:
+            self.camera_options = camera_options
+        else:
+            self.camera_options = CameraOptions()
         self.screensize = screensize
         self.aspect = screensize[0] / screensize[1]
         self.zoomlevel = 200  # how many integer points to fit on x-axis
         self.middle = np.array((0.0, 0.0))
         self.previous_mouse_motion = None
-        self.scrollspeed = scrollspeed # higher is slower
+        self.wasd_state = [False]*4
+
+    def tick(self, delta):
+        W = 0
+        A = 1
+        S = 2
+        D = 3
+        scroll_dir = np.array([0, 0])
+        if self.wasd_state[W]:
+            scroll_dir[1] += -1
+        if self.wasd_state[A]:
+            scroll_dir[0] += -1
+        if self.wasd_state[S]:
+            scroll_dir[1] += +1
+        if self.wasd_state[D]:
+            scroll_dir[0] += +1
+        self.scroll(scroll_dir, self.camera_options.key_scroll_speed * delta)
+        
+
 
     def get_zoom(self):
         width = self.screensize[0] / (self.zoomlevel / 2)
@@ -51,6 +78,10 @@ class Camera:
         world_y = ytop + y_ratio * y_scale
         return world_x, world_y
 
+    def scroll(self, direction, strength):
+        if direction.any():
+            self.middle += direction * self.zoomlevel / strength
+
     def handle_event(self, event):
         if event.type == pg.MOUSEBUTTONDOWN:
             if event.button == 1:  # left mouse button
@@ -64,9 +95,18 @@ class Camera:
         elif event.type == pg.MOUSEMOTION:
             if pg.mouse.get_pressed()[0]:
                 pos = np.array(event.pos)
-                direction = (self.previous_mouse_motion - pos) * self.zoomlevel / self.scrollspeed
+                direction = (self.previous_mouse_motion - pos)
                 self.previous_mouse_motion = pos
-                self.middle += direction
+                self.scroll(direction, self.camera_options.mouse_scroll_speed)
+        elif event.type == pg.KEYDOWN or event.type == pg.KEYUP:
+            if event.key == pg.K_w:
+                self.wasd_state[0] = event.type == pg.KEYDOWN
+            if event.key == pg.K_a:
+                self.wasd_state[1] = event.type == pg.KEYDOWN
+            if event.key == pg.K_s:
+                self.wasd_state[2] = event.type == pg.KEYDOWN
+            if event.key == pg.K_d:
+                self.wasd_state[3] = event.type == pg.KEYDOWN
 
 
 class PygameVisualizer:
@@ -84,6 +124,7 @@ class PygameVisualizer:
         self.camera = Camera(screensize)
         self.screen = pg.display.set_mode(screensize)
         self.targets = targets
+        self.delta = 0
 
     def __draw_pheromones(self, realm):
         xleft, xright, ytop, ybottom = map(int, self.camera.get_world_coordinate_bounds())
@@ -122,20 +163,23 @@ class PygameVisualizer:
             else:
                 self.camera.handle_event(event)
 
-    def step_frame(self, realm=None):
+    def tick(self, delta, realm=None):
         self.__handle_events()
         self.__draw(realm)
-        self.clock.tick(self.tickrate)
+        self.camera.tick(delta)
+
+    def step_frame(self, realm=None):
+        self.tick(self.delta, realm)
+        self.delta = self.clock.tick(self.tickrate)
 
     def run(self, updatefunc, realm=None):
         """ Starts the visualizer, calling updatefunc once between every draw """
         if not callable(updatefunc):
             raise ValueError("updatefunc must be callable")
         while self.running:
-            self.__handle_events()
-            self.__draw(realm)
+            self.tick(self.delta, realm)
             updatefunc(self.targets)
-            self.clock.tick(self.tickrate)
+            self.delta = self.clock.tick(self.tickrate)
 
 
 class TestEntity:
