@@ -170,11 +170,22 @@ class PygameVisualizer:
         self.debug_vector_scaling = 1000
 
     def __draw_pheromones(self, realm):
+        clamp = 255
+        def scale_color(image):
+            w, h = image.shape
+            ret = np.empty((w,h,3), dtype=np.uint8)
+            strength = 2 / (1 + np.e**(-0.1*array)) - 1
+            ret[:,:,0] = (34  * (1-strength) +   0*strength).astype(np.uint8)
+            ret[:,:,1] = (177 * (1-strength) +   0*strength).astype(np.uint8)
+            ret[:,:,2] = (76  * (1-strength) + 255*strength).astype(np.uint8)
+            return ret
+
         xleft, xright, ytop, ybottom = map(int, self.world_bounds)
         array = realm.land[xleft+1:xright-1,ytop+1:ybottom-1]
-        surf = pg.surfarray.make_surface(array)
+        surf = pg.surfarray.make_surface(scale_color(array))
+        surf.set_colorkey((clamp,clamp,clamp))
         full_surf = pg.transform.scale(surf, self.screen.get_size())
-        self.screen.blit(full_surf, (0, 0), special_flags=pg.BLEND_ADD)
+        self.screen.blit(full_surf, (0, 0))
 
     def __is_on_screen(self, pos):
         xleft, xright, ytop, ybottom = self.world_bounds

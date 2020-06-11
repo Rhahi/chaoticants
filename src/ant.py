@@ -38,10 +38,9 @@ class Realm():
         self.time_increment = 1 # the amount of time to progress per tick.
         
         self.land = np.zeros(size)
-        self.gradient = np.gradient(self.land)
         self.next_land_queue = SimpleQueue()
 
-        self.evaporate_rate = 0.7 # TODO fix magic number
+        self.evaporate_rate = 0.95 # TODO fix magic number
         self.food_list = []
         self.flag_food_removed = False
 
@@ -116,7 +115,7 @@ class Ant(Entity):
 
         # constants to be tuned
         self.grab_amount = 10
-        self.pheromone_amount = 2
+        self.pheromone_amount = 50
         self.walk_speed = 1
         self.chaotic_constant = chaotic_constant
         self.smell_range = 25
