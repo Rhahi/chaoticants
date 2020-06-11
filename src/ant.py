@@ -158,8 +158,8 @@ class Ant(Entity):
             return mag, 0
     def walk(self):
         """
-            considering the current state of the and the surroundings, the ant can walk through the realm.
-            this will set its next position state, which gets updated when update() is called.
+        considering the current state of the and the surroundings, the ant can walk through the realm.
+        this will set its next position state, which gets updated when update() is called.
         """
         # chaotic turning
         self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
@@ -225,6 +225,9 @@ class Ant(Entity):
 
         returns imaginary direction of the deterimined "strongest smell"
         refer to antmath.py for detailed implementation of the sniffmatrix.
+        
+        warning: this method does not consider that the sniffmatrix can be outside of map.
+        index can get out of bound when an ant is nearby the edge.
         """
         p = self.states["position"].astype(int)
         left, right = p[0] - self.smell_range, p[0] + self.smell_range
@@ -244,7 +247,9 @@ class Ant(Entity):
         self.next_states["food"] = grabbed
 
     def drop(self):
-        # drop the food, and increase the food stored in the colony
+        """
+        drop the food, and increase the food stored in the colony
+        """
         self.nest.new_food += self.states["food"]
         self.next_states["food"] = 0
 
@@ -272,6 +277,7 @@ class Colony(Entity):
         self.range = 10 # MAGIC NUMBER; the distance it is considered for ants to be "home"
         self.mix_noise = noise # how much noise to inject to the chaotic function.
         self.mix_returning = 0.5
+        
         #children entities
         self.ants = []
         self.new_ants = []
