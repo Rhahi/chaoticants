@@ -19,6 +19,15 @@ class Food():
     def get_heading(self):
         return 0.25
 
+    def get_arrows(self):
+        return {
+            "food": {
+                "heading": 0.25,
+                "color": (120, 120, 0),
+                "intensity": self.amount / 10
+            }
+        }
+
 class Realm():
     """
     The world where our ants and nests live in.
@@ -89,6 +98,9 @@ class Entity():
     def get_heading(self):
         return 0.25
 
+    def get_arrows(self):
+        return {}
+
 
 class AntModes(Enum):
     searching = 1
@@ -117,6 +129,9 @@ class Ant(Entity):
         #self._create_state("fatigue", 0) # fatigue is turned off as it does nothing right now.
         self._create_state("food", 0)
         self.mode = AntModes.searching
+
+        # used for debugs
+        self.arrows = {}
 
     def do(self):
         """
@@ -161,6 +176,8 @@ class Ant(Entity):
         considering the current state of the and the surroundings, the ant can walk through the realm.
         this will set its next position state, which gets updated when update() is called.
         """
+        self.clear_arrows()
+
         # chaotic turning
         self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
 
@@ -173,6 +190,7 @@ class Ant(Entity):
         if self.mode == AntModes.searching:
             raw_sniff, mag_sniff = self.sniff()
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
+                self.set_arrows("sniff")
                 # not implemented yet.
                 intensity = 0 #FIXME
                 s_base = 0 #FIXME
@@ -183,7 +201,8 @@ class Ant(Entity):
 
         h = antmath.imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
-        
+
+        self.set_arrows("heading", self.heading, (0,0,255), 10)
 
         if self.realm.check_boundary(next_position):
             self.next_states["position"] = next_position
@@ -255,6 +274,19 @@ class Ant(Entity):
 
     def get_heading(self):
         return self.heading
+
+    def set_arrows(self, name, heading, color, intensity):
+        self.arrows[name] = {
+            "heading": heading,
+            "color": color,
+            "intensity": intensity
+        }
+
+    def clear_arrows(self):
+        self.arrows = {}
+
+    def get_arrows(self):
+        return self.arrows
         
 
 class Colony(Entity):
