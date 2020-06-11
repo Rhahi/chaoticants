@@ -83,10 +83,9 @@ def direction_to_exponent(array):
     vec = unitvector(array)
     
     theta1 = np.arccos(vec[1])
-    x_angle_candidates = [theta1, 2*np.pi - theta1]
-    
     theta2 = np.arcsin(vec[0])
-    y_angle_candidates = [abs(theta2), np.pi - theta2]
+    x_angle_candidates = [theta1, 2*np.pi - theta1]
+    y_angle_candidates = [(theta2 + 2*np.pi)%(2*np.pi), np.pi - theta2]
 
     for cx in x_angle_candidates:
         for cy in y_angle_candidates:

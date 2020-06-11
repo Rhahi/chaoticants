@@ -152,9 +152,6 @@ class Ant(Entity):
             else:
                 self.make_pheromones()
                 self.walk()
-            # TODO: make ants properly return home, instead of just walking randomly again.
-
-        #self.next_states["fatigue"] = self.states["fatigue"] + 1
 
     def pheromone_gradient(self):
         """
@@ -188,12 +185,11 @@ class Ant(Entity):
         self.heading += h_base # basic "noise" injection from the previous heading.
 
         if self.mode == AntModes.searching:
-            raw_sniff, mag_sniff = self.sniff()
+            s_base, mag_sniff = self.sniff()
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
-                self.set_arrows("sniff")
+                self.set_arrows("sniff", s_base, (255, 0, 0), mag_sniff)
                 # not implemented yet.
-                intensity = 0 #FIXME
-                s_base = 0 #FIXME
+                intensity = 0.5 #FIXME
                 self.heading = antmath.mix([self.heading, 1-intensity], [s_base, intensity])
 
         elif self.mode == AntModes.returning: # when heading home, ants know where the home is.
@@ -239,15 +235,13 @@ class Ant(Entity):
 
     def sniff(self):
         """
-        senses nearby pheromone and returns the gradient
-        the magnitude of the gradient indicates that the pheromone is strong.
-
         returns imaginary direction of the deterimined "strongest smell"
         refer to antmath.py for detailed implementation of the sniffmatrix.
         
         warning: this method does not consider that the sniffmatrix can be outside of map.
         index can get out of bound when an ant is nearby the edge.
         """
+        assert self.mode != AntModes.returning
         p = self.states["position"].astype(int)
         left, right = p[0] - self.smell_range, p[0] + self.smell_range
         top, bottom = p[1] - self.smell_range, p[1] + self.smell_range
@@ -255,7 +249,14 @@ class Ant(Entity):
         
         raw_matrix = np.multiply(current_slice, antmath.sniffmatrix)
         raw_sum = np.sum(raw_matrix)
-        return raw_sum, np.linalg.norm(raw_sum)
+        raw_intensity = np.linalg.norm(raw_sum)
+        
+
+        if raw_intensity > 0.1:
+            direction = antmath.imag_to_array(raw_sum)
+            return (antmath.direction_to_exponent(direction))%1, np.linalg.norm(raw_sum)
+        else:
+            return 0, 0
 
     def grab(self, food):
         """
@@ -308,7 +309,7 @@ class Colony(Entity):
         self.position = np.array(nest_position)
         self.range = 10 # MAGIC NUMBER; the distance it is considered for ants to be "home"
         self.mix_noise = noise # how much noise to inject to the chaotic function.
-        self.mix_returning = 0.5
+        self.mix_returning = 1
         
         #children entities
         self.ants = []
