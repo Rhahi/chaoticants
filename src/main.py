@@ -32,8 +32,6 @@ def main(stepping = False):
     pgv = PygameVisualizer([(realm.food_list, "food.png")] + [(colonies, "home.png")] + [(colony.ants, "ant.png") for colony in colonies] )
     pgv.camera.middle = tuple(colony.position)
 
-    
-
     while True:
         progress_time(realm, colonies)
         pgv.step_frame(realm)

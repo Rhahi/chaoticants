@@ -9,7 +9,7 @@ class Food():
         self.amount = amount
 
     def take(self, amount):
-        taken = min(self.amount - amount, amount)
+        taken = min(amount, self.amount)
         self.amount -= taken
         return taken
 
@@ -43,6 +43,7 @@ class Realm():
 
         self.evaporate_rate = 0.7 # TODO fix magic number
         self.food_list = []
+        self.flag_food_removed = False
 
     def spawn_food(self, position, amount):
         self.food_list.append(Food(position, amount))
@@ -61,9 +62,9 @@ class Realm():
         self.land = np.dot(self.land, self.evaporate_rate) # exponential decay
         while not self.next_land_queue.empty():
             p, a = self.next_land_queue.get()
-            #mport pdb; pdb.set_trace()
             self.land[p] += a
-        #self.gradient = np.gradient(self.land)
+        
+        self.food_list[:] = [f for f in self.food_list if not np.isclose(f.amount, 0)]
         self.time += self.time_increment
 
 class Entity():
@@ -189,7 +190,7 @@ class Ant(Entity):
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
                 self.set_arrows("sniff", s_base, (255, 0, 0), mag_sniff)
                 # not implemented yet.
-                intensity = 0.5 #FIXME
+                intensity = 0. #FIXME
                 self.heading = antmath.mix([self.heading, 1-intensity], [s_base, intensity])
 
         elif self.mode == AntModes.returning: # when heading home, ants know where the home is.
