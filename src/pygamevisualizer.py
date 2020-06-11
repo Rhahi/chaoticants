@@ -166,7 +166,8 @@ class PygameVisualizer:
         self.debug_mode = False
         self.profiler = Profiler()
         self.world_bounds = None
-        self.debug_data = {"heading": {"color": (140, 190, 40)}}
+        self.debug_legend_data = {}
+        self.debug_vector_scaling = 1000
 
     def __draw_pheromones(self, realm):
         xleft, xright, ytop, ybottom = map(int, self.world_bounds)
@@ -181,24 +182,37 @@ class PygameVisualizer:
         return x > xleft and x < xright and y > ytop and y < ybottom
 
     def __draw_vector(self, pos, direction, magnitude, color):
-        mag = magnitude / self.camera.zoomlevel
+        mag = magnitude * self.debug_vector_scaling / self.camera.zoomlevel
         res = np.e ** (2j * np.pi * direction)
         end_x = pos[0] + res.imag * mag
         end_y = pos[1] + res.real * mag
         pg.draw.aaline(self.screen, color, pos, (end_x, end_y))
 
     def __draw_legend(self, fontname = "arial", fontsize = 12):
-        if not self.debug_mode:
+        if not self.debug_mode or not self.debug_legend_data:
             return
-        
         next_pos = (10, 10)
-        for dd in self.debug_data:
+        for dd in self.debug_legend_data:
             font = pg.font.SysFont(fontname, fontsize)
-            color = self.debug_data[dd]["color"]
+            color = self.debug_legend_data[dd]["color"]
             text = font.render(dd, True, color)
             self.screen.blit(text, next_pos)
             next_pos = (0, text.get_height())
         
+    def __draw_debug(self, ent, pos):
+        if not self.debug_mode:
+            return
+        try:
+            arrows = ent.get_arrows()
+        except AttributeError:
+            return
+        for arrow_name in arrows:
+            arrow = arrows[arrow_name]
+            if arrow_name not in self.debug_legend_data:
+                self.debug_legend_data[arrow_name] = arrow
+            self.__draw_vector(pos, arrow["heading"], arrow["intensity"], arrow["color"])
+        
+
         
     def __draw(self, realm=None):
         self.profiler.start_profiling("draw")
@@ -223,7 +237,7 @@ class PygameVisualizer:
                     if self.debug_mode:
                         spritesize = scaled.get_size()
                         pos_middle = (pos[0] + spritesize[0]/2, pos[1] + spritesize[1]/2)
-                        self.__draw_vector(pos_middle, ent.get_heading(), 5000, (40, 120, 60))
+                        self.__draw_debug(ent, pos_middle)
                             
         self.profiler.end_profiling("entities")
         self.__draw_legend()
