@@ -169,19 +169,15 @@ class PygameVisualizer:
 
     def __draw_pheromones(self, realm):
         xleft, xright, ytop, ybottom = map(int, self.world_bounds)
-        #print(f" Drawing x from {xleft} to {xright}\n Drawing y from {ytop} to {ybottom}. Total tiles checked: {(xright-xleft) * (ybottom-ytop)}")
-        for pos, strength in np.ndenumerate(realm.land[xleft+1:xright-1,ytop+1:ybottom-1]):
-            pos = (pos[0] + xleft+1, pos[1] + ytop+1)
-            if strength>0:
-                color = pg.Color("blue") ""
-                pg.draw.rect(self.screen, color, pg.Rect(self.camera.world_to_screen_coordinate(pos), (3,3)))
+        array = realm.land[xleft+1:xright-1,ytop+1:ybottom-1]
+        surf = pg.surfarray.make_surface(array)
+        full_surf = pg.transform.scale(surf, self.screen.get_size())
+        self.screen.blit(full_surf, (0, 0))
 
     def __is_on_screen(self, pos):
         xleft, xright, ytop, ybottom = self.world_bounds
         x, y = pos
         return x > xleft and x < xright and y > ytop and y < ybottom
-
-
 
     def __draw(self, realm=None):
         self.profiler.start_profiling("draw")
