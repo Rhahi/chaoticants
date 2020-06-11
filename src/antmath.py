@@ -43,6 +43,20 @@ def _build_direction_matrix(height, width):
 
     return matrix
 
+def mix(*argv):
+    mix_sum = 0
+    mag_sum = 0
+    for m in argv:
+        value, magnitude = m
+        mix_sum += value * magnitude
+        mag_sum += magnitude
+
+    if mag_sum != 1.: raise ValueError("Mixing magnitudes should sum up to 1.")
+    return mix_sum
+
+def imag_to_array(d):
+    return np.array([d.imag, d.real])
+
 def unitvector(vec):
     return vec / np.linalg.norm(vec)
 

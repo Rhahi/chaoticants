@@ -161,27 +161,13 @@ class Ant(Entity):
             considering the current state of the and the surroundings, the ant can walk through the realm.
             this will set its next position state, which gets updated when update() is called.
         """
-        def imag_to_array(d):
-            return np.array([d.imag, d.real])
-
-        def mix(*argv):
-            mix_sum = 0
-            mag_sum = 0
-            for m in argv:
-                value, magnitude = m
-                mix_sum += value * magnitude
-                mag_sum += magnitude
-
-            if mag_sum != 1.: raise ValueError("Mixing magnitudes should sum up to 1.")
-            return mix_sum
-
         # chaotic turning
         self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
 
         # intermediate heading. Div 4 means restricting chaotic movement to 90 degrees.
         c_base = self.turning * 4 / self.chaotic_constant - 0.5
         r_base = np.random.rand() - 0.5
-        h_base = mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 4 
+        h_base = antmath.mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 4 
         self.heading += h_base # basic "noise" injection from the previous heading.
 
         if self.mode == AntModes.searching:
@@ -190,14 +176,12 @@ class Ant(Entity):
                 # not implemented yet.
                 intensity = 0 #FIXME
                 s_base = 0 #FIXME
-                self.heading = mix([self.heading, 1-intensity], [s_base, intensity])
+                self.heading = antmath.mix([self.heading, 1-intensity], [s_base, intensity])
 
         elif self.mode == AntModes.returning: # when heading home, ants know where the home is.
-            self.heading = mix([self.direction_to_home(), self.mix_home], [self.heading, 1-self.mix_home])
-            
+            self.heading = antmath.mix([self.direction_to_home(), self.mix_home], [self.heading, 1-self.mix_home])
 
-
-        h = imag_to_array(np.e ** (2j * np.pi * self.heading))
+        h = antmath.imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
         
 
