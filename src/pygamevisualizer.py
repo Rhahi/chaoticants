@@ -4,15 +4,42 @@ import random
 import sys
 import pdb
 
+class CameraOptions:
+    def __init__(self):
+        self.mouse_scroll_speed = 800
+        self.key_scroll_speed = 0.3  # lower is faster
+
 class Camera:
     #  TODO: make controls depend on time between draws to unlink from frame rate
-    def __init__(self, screensize = (1024,800), scrollspeed = 800):
+    def __init__(self, screensize = (1024,800), camera_options = None):
+        if camera_options:
+            self.camera_options = camera_options
+        else:
+            self.camera_options = CameraOptions()
         self.screensize = screensize
         self.aspect = screensize[0] / screensize[1]
         self.zoomlevel = 200  # how many integer points to fit on x-axis
         self.middle = np.array((0.0, 0.0))
         self.previous_mouse_motion = None
-        self.scrollspeed = scrollspeed # higher is slower
+        self.wasd_state = [False]*4
+
+    def tick(self, delta):
+        W = 0
+        A = 1
+        S = 2
+        D = 3
+        scroll_dir = np.array([0, 0])
+        if self.wasd_state[W]:
+            scroll_dir[1] += -1
+        if self.wasd_state[A]:
+            scroll_dir[0] += -1
+        if self.wasd_state[S]:
+            scroll_dir[1] += +1
+        if self.wasd_state[D]:
+            scroll_dir[0] += +1
+        self.scroll(scroll_dir, self.camera_options.key_scroll_speed * delta)
+        
+
 
     def get_zoom(self):
         width = self.screensize[0] / (self.zoomlevel / 2)
@@ -51,6 +78,10 @@ class Camera:
         world_y = ytop + y_ratio * y_scale
         return world_x, world_y
 
+    def scroll(self, direction, strength):
+        if direction.any():
+            self.middle += direction * self.zoomlevel / strength
+
     def handle_event(self, event):
         if event.type == pg.MOUSEBUTTONDOWN:
             if event.button == 1:  # left mouse button
@@ -64,13 +95,60 @@ class Camera:
         elif event.type == pg.MOUSEMOTION:
             if pg.mouse.get_pressed()[0]:
                 pos = np.array(event.pos)
-                direction = (self.previous_mouse_motion - pos) * self.zoomlevel / self.scrollspeed
+                direction = (self.previous_mouse_motion - pos)
                 self.previous_mouse_motion = pos
-                self.middle += direction
+                self.scroll(direction, self.camera_options.mouse_scroll_speed)
+        elif event.type == pg.KEYDOWN or event.type == pg.KEYUP:
+            if event.key == pg.K_w:
+                self.wasd_state[0] = event.type == pg.KEYDOWN
+            if event.key == pg.K_a:
+                self.wasd_state[1] = event.type == pg.KEYDOWN
+            if event.key == pg.K_s:
+                self.wasd_state[2] = event.type == pg.KEYDOWN
+            if event.key == pg.K_d:
+                self.wasd_state[3] = event.type == pg.KEYDOWN
 
+class Profiler:
+    def __init__(self):
+        self.enabled = False
+        self.start_times = {}
+        self.end_times = {}
+        
+    
+    def start_profiling(self, subject):
+        if not self.enabled:
+            return
+        self.start_times[subject] = pg.time.get_ticks()
+            
+    def end_profiling(self, subject):
+        if not self.enabled:
+            return
+        self.end_times[subject] = pg.time.get_ticks()
+
+    def report_profiling(self):
+        if not self.enabled:
+            return
+
+        times = {}
+        for subject in self.start_times:
+            if subject in self.end_times:
+                times[subject] = self.end_times[subject] - self.start_times[subject]
+
+        if len(times) == 0:
+            print("Want to report profiling but no good data captured")
+            return
+
+        self.data = {}
+        sorted_times = sorted(times.items(), key = lambda t: -t[1])
+        slowest = None
+        for subject, time in sorted_times:
+            if not slowest:
+                slowest = time
+            print(f"Profiling: {subject} took {time} ms which is {(time/slowest):.2%} as slow as the slowest")
+        print()
 
 class PygameVisualizer:
-    def __init__(self, targets, tickrate = 20, screensize = (1024, 800)):
+    def __init__(self, targets, tickrate = 40, screensize = (1024, 800)):
         """ 
         targets is a list of tuples (entity, sprite) of what to draw. entity should have get_position(), and get_heading() functions
         sprites should be pointing to the right
@@ -84,32 +162,73 @@ class PygameVisualizer:
         self.camera = Camera(screensize)
         self.screen = pg.display.set_mode(screensize)
         self.targets = targets
+        self.delta = 0
+        self.debug_mode = False
+        self.profiler = Profiler()
+        self.world_bounds = None
+        self.debug_data = {"heading": {"color": (140, 190, 40)}}
 
     def __draw_pheromones(self, realm):
-        xleft, xright, ytop, ybottom = map(int, self.camera.get_world_coordinate_bounds())
-        for pos, strength in np.ndenumerate(realm.land[xleft+1:xright-1,ytop+1:ybottom-1]):
-            pos = (pos[0] + xleft+1, pos[1] + ytop+1)
-            if strength>0:
-                color = pg.Color("blue")
+        xleft, xright, ytop, ybottom = map(int, self.world_bounds)
+        array = realm.land[xleft+1:xright-1,ytop+1:ybottom-1]
+        surf = pg.surfarray.make_surface(array)
+        full_surf = pg.transform.scale(surf, self.screen.get_size())
+        self.screen.blit(full_surf, (0, 0))
 
-                pg.draw.rect(self.screen, color, pg.Rect(self.camera.world_to_screen_coordinate(pos), (3,3)))
+    def __is_on_screen(self, pos):
+        xleft, xright, ytop, ybottom = self.world_bounds
+        x, y = pos
+        return x > xleft and x < xright and y > ytop and y < ybottom
 
+    def __draw_vector(self, pos, direction, magnitude, color):
+        mag = magnitude / self.camera.zoomlevel
+        res = np.e ** (2j * np.pi * direction)
+        end_x = pos[0] + res.imag * mag
+        end_y = pos[1] + res.real * mag
+        pg.draw.aaline(self.screen, color, pos, (end_x, end_y))
+
+    def __draw_legend(self, fontname = "arial", fontsize = 12):
+        if not self.debug_mode:
+            return
+        
+        next_pos = (0, 0)
+        for dd in self.debug_data:
+            font = pg.font.SysFont(fontname, fontsize)
+            color = self.debug_data[dd]["color"]
+            text = font.render(dd, True, color)
+            self.screen.blit(text, next_pos)
+            next_pos = (0, text.get_height())
+        
+        
     def __draw(self, realm=None):
+        self.profiler.start_profiling("draw")
         self.screen.fill((12, 156, 20))
-        xleft, xright, ytop, ybottom = self.camera.get_world_coordinate_bounds()
         if realm:
+            self.profiler.start_profiling("pheromones")
             self.__draw_pheromones(realm)
-        for entities, sprite in self.targets:
-            if sprite not in self.sprites:
-                self.sprites[sprite] = pg.image.load(sprite).convert_alpha()
+            self.profiler.end_profiling("pheromones")
+
+        self.profiler.start_profiling("entities")
+        for entities, sprite_name in self.targets:
+            if sprite_name not in self.sprites:
+                self.sprites[sprite_name] = pg.image.load(sprite_name).convert_alpha()
+            sprite = self.sprites[sprite_name]
             for ent in entities:
                 x, y = ent.get_position()
-                if x > xleft and x < xright and y > ytop and y < ybottom:
+                if self.__is_on_screen((x, y)):
                     pos = self.camera.world_to_screen_coordinate((x, y))
-                    scaled = pg.transform.scale(self.sprites[sprite], self.camera.get_zoom())
+                    scaled = pg.transform.scale(sprite, self.camera.get_zoom())
                     rotated = pg.transform.rotate(scaled, ((270 + ent.get_heading()*360) % 360))
                     self.screen.blit(rotated, pos)
+                    if self.debug_mode:
+                        spritesize = scaled.get_size()
+                        pos_middle = (pos[0] + spritesize[0]/2, pos[1] + spritesize[1]/2)
+                        self.__draw_vector(pos_middle, ent.get_heading(), 5000, (40, 120, 60))
+                            
+        self.profiler.end_profiling("entities")
+        self.__draw_legend()
         pg.display.update()
+        self.profiler.end_profiling("draw")
 
     def __handle_events(self):
         for event in pg.event.get():
@@ -119,23 +238,23 @@ class PygameVisualizer:
             elif event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 self.running = False
                 sys.exit()
+            elif (event.type == pg.KEYDOWN or event.type == pg.KEYUP) and event.key == pg.K_SPACE:
+                self.debug_mode = event.type == pg.KEYDOWN
+            elif (event.type == pg.KEYDOWN or event.type == pg.KEYUP) and event.key == pg.K_x:
+                self.profiler.enabled = event.type == pg.KEYDOWN
             else:
                 self.camera.handle_event(event)
 
-    def step_frame(self, realm=None):
+    def tick(self, delta, realm=None):
         self.__handle_events()
+        self.world_bounds = self.camera.get_world_coordinate_bounds()
         self.__draw(realm)
-        self.clock.tick(self.tickrate)
+        self.camera.tick(delta)
 
-    def run(self, updatefunc, realm=None):
-        """ Starts the visualizer, calling updatefunc once between every draw """
-        if not callable(updatefunc):
-            raise ValueError("updatefunc must be callable")
-        while self.running:
-            self.__handle_events()
-            self.__draw(realm)
-            updatefunc(self.targets)
-            self.clock.tick(self.tickrate)
+    def step_frame(self, realm=None):
+        self.tick(self.delta, realm)
+        self.delta = self.clock.tick(self.tickrate)
+        self.profiler.report_profiling()
 
 
 class TestEntity:
@@ -163,4 +282,3 @@ if __name__ == "__main__":
     entities[0].y = 0
     pgv = PygameVisualizer([(entities, "ant.png")]) #suggested ant: https://www.flaticon.com/free-icon/ant_355680
     #pgv = PygameVisualizer([(ants, "ant.png"), (colonies, "col.jpg"), (pheros, "pheromone.gif")]) <-- example of one way to initalize the class
-    pgv.run(lambda targets: [ent.walk() for target in targets for ent in target[0]])
