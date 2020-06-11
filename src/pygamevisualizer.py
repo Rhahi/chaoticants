@@ -173,7 +173,7 @@ class PygameVisualizer:
         array = realm.land[xleft+1:xright-1,ytop+1:ybottom-1]
         surf = pg.surfarray.make_surface(array)
         full_surf = pg.transform.scale(surf, self.screen.get_size())
-        self.screen.blit(full_surf, (0, 0))
+        self.screen.blit(full_surf, (0, 0), special_flags=pg.BLEND_ADD)
 
     def __is_on_screen(self, pos):
         xleft, xright, ytop, ybottom = self.world_bounds
@@ -191,7 +191,7 @@ class PygameVisualizer:
         if not self.debug_mode:
             return
         
-        next_pos = (0, 0)
+        next_pos = (10, 10)
         for dd in self.debug_data:
             font = pg.font.SysFont(fontname, fontsize)
             color = self.debug_data[dd]["color"]
@@ -202,7 +202,7 @@ class PygameVisualizer:
         
     def __draw(self, realm=None):
         self.profiler.start_profiling("draw")
-        self.screen.fill((12, 156, 20))
+        self.screen.fill((34, 177, 76))
         if realm:
             self.profiler.start_profiling("pheromones")
             self.__draw_pheromones(realm)
