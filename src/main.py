@@ -1,6 +1,7 @@
 # the main program that runs and animates the and behaviour
 from ant import Realm, Ant, Colony
 from pygamevisualizer import PygameVisualizer
+import sys
 import numpy as np
 import random
 import antmath
@@ -21,7 +22,7 @@ def progress_time(realm, colonies):
         colony.update()
     realm.update()
 
-if __name__ == "__main__":
+def main(stepping = False):
     realm = Realm(size=(1000, 1000))
     antmath.build_antmath_matrix(50, 50)
     spawn_food(realm, count=200)
@@ -31,6 +32,16 @@ if __name__ == "__main__":
     pgv = PygameVisualizer([(realm.food_list, "food.png")] + [(colonies, "home.png")] + [(colony.ants, "ant.png") for colony in colonies] )
     pgv.camera.middle = tuple(colony.position)
 
+    
+
     while True:
         progress_time(realm, colonies)
         pgv.step_frame(realm)
+        if stepping:
+            import msvcrt
+            msvcrt.getch()
+
+
+if __name__ == "__main__":
+    main("step" in sys.argv)
+
