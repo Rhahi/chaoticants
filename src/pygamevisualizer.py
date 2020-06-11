@@ -166,6 +166,7 @@ class PygameVisualizer:
         self.debug_mode = False
         self.profiler = Profiler()
         self.world_bounds = None
+        self.debug_data = {"heading": {"color": (140, 190, 40)}}
 
     def __draw_pheromones(self, realm):
         xleft, xright, ytop, ybottom = map(int, self.world_bounds)
@@ -179,6 +180,26 @@ class PygameVisualizer:
         x, y = pos
         return x > xleft and x < xright and y > ytop and y < ybottom
 
+    def __draw_vector(self, pos, direction, magnitude, color):
+        mag = magnitude / self.camera.zoomlevel
+        res = np.e ** (2j * np.pi * direction)
+        end_x = pos[0] + res.imag * mag
+        end_y = pos[1] + res.real * mag
+        pg.draw.aaline(self.screen, color, pos, (end_x, end_y))
+
+    def __draw_legend(self, fontname = "arial", fontsize = 12):
+        if not self.debug_mode:
+            return
+        
+        next_pos = (0, 0)
+        for dd in self.debug_data:
+            font = pg.font.SysFont(fontname, fontsize)
+            color = self.debug_data[dd]["color"]
+            text = font.render(dd, True, color)
+            self.screen.blit(text, next_pos)
+            next_pos = (0, text.get_height())
+        
+        
     def __draw(self, realm=None):
         self.profiler.start_profiling("draw")
         self.screen.fill((12, 156, 20))
@@ -186,20 +207,26 @@ class PygameVisualizer:
             self.profiler.start_profiling("pheromones")
             self.__draw_pheromones(realm)
             self.profiler.end_profiling("pheromones")
-            if self.debug_mode:
-                pass
+
         self.profiler.start_profiling("entities")
-        for entities, sprite in self.targets:
-            if sprite not in self.sprites:
-                self.sprites[sprite] = pg.image.load(sprite).convert_alpha()
+        for entities, sprite_name in self.targets:
+            if sprite_name not in self.sprites:
+                self.sprites[sprite_name] = pg.image.load(sprite_name).convert_alpha()
+            sprite = self.sprites[sprite_name]
             for ent in entities:
                 x, y = ent.get_position()
                 if self.__is_on_screen((x, y)):
                     pos = self.camera.world_to_screen_coordinate((x, y))
-                    scaled = pg.transform.scale(self.sprites[sprite], self.camera.get_zoom())
+                    scaled = pg.transform.scale(sprite, self.camera.get_zoom())
                     rotated = pg.transform.rotate(scaled, ((270 + ent.get_heading()*360) % 360))
                     self.screen.blit(rotated, pos)
+                    if self.debug_mode:
+                        spritesize = scaled.get_size()
+                        pos_middle = (pos[0] + spritesize[0]/2, pos[1] + spritesize[1]/2)
+                        self.__draw_vector(pos_middle, ent.get_heading(), 5000, (40, 120, 60))
+                            
         self.profiler.end_profiling("entities")
+        self.__draw_legend()
         pg.display.update()
         self.profiler.end_profiling("draw")
 

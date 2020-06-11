@@ -22,7 +22,7 @@ def progress_time(realm, colonies):
         colony.update()
     realm.update()
 
-def main():
+def main(stepping = False):
     realm = Realm(size=(1000, 1000))
     antmath.build_antmath_matrix(50, 50)
     spawn_food(realm, count=200)
@@ -32,11 +32,16 @@ def main():
     pgv = PygameVisualizer([(realm.food_list, "food.png")] + [(colonies, "home.png")] + [(colony.ants, "ant.png") for colony in colonies] )
     pgv.camera.middle = tuple(colony.position)
 
+    
+
     while True:
         progress_time(realm, colonies)
         pgv.step_frame(realm)
+        if stepping:
+            import msvcrt
+            msvcrt.getch()
 
 
 if __name__ == "__main__":
-    main()
+    main("step" in sys.argv)
 
