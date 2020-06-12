@@ -181,13 +181,8 @@ class PygameVisualizer:
 
         xleft, xright, ytop, ybottom = map(int, self.world_bounds)
         array = realm.land[xleft+1:xright-1,ytop+1:ybottom-1]
-        self.profiler.start_profiling("make surf")
         surf = pg.surfarray.make_surface(scale_color(array))
-        self.profiler.end_profiling("make surf")
-        self.profiler.start_profiling("scaling")
-        full_surf = pg.transform.scale(surf, self.screen.get_size(), self.screen)
-        self.profiler.end_profiling("scaling")
-        #self.screen.blit(full_surf, (0, 0))
+        pg.transform.scale(surf, self.screen.get_size(), self.screen)
 
     def __is_on_screen(self, pos):
         xleft, xright, ytop, ybottom = self.world_bounds
