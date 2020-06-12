@@ -4,6 +4,8 @@ import random
 import sys
 import pdb
 
+BLACK = (0,0,0)
+
 class CameraOptions:
     def __init__(self):
         self.mouse_scroll_speed = 800
@@ -168,15 +170,36 @@ class PygameVisualizer:
         self.world_bounds = None
         self.debug_legend_data = {}
         self.debug_vector_scaling = 1000
+        self.__construct_pheromone_legend()
+        
+
+    def __get_phero_color(self, strength):
+        return np.array((
+            (34  * (1-strength) +   0*strength).astype(np.uint8),
+            (177 * (1-strength) +   0*strength).astype(np.uint8),
+            (76  * (1-strength) + 255*strength).astype(np.uint8)))
+
+    def __construct_pheromone_legend(self, frame_w = 4, frame_h = 4):
+        start_arr = np.array([np.linspace(0, 1, 255)])
+        arr = np.empty((*start_arr.shape,3), dtype=np.uint8)
+        arr[:,:,0], arr[:,:,1], arr[:,:,2] = self.__get_phero_color(start_arr)
+        surf = pg.surfarray.make_surface(arr)
+        scaled_surf = pg.transform.scale(surf, (10, 255*2))
+        legend_size = scaled_surf.get_size()
+        self.phero_legend = pg.Surface((legend_size[0] + frame_w, legend_size[1] + frame_h))
+        self.phero_legend.fill(BLACK)
+        self.phero_legend.blit(scaled_surf, (frame_w / 2, frame_h / 2))
+
+    def __draw_pheromone_legend(self):
+        pos = (self.screen.get_size()[0] - 30, 10)
+        self.screen.blit(self.phero_legend, pos)
 
     def __draw_pheromones(self, realm):
         def scale_color(image):
             w, h = image.shape
             ret = np.empty((w,h,3), dtype=np.uint8)
             strength = 2 / (1 + np.e**(-0.1*array)) - 1
-            ret[:,:,0] = (34  * (1-strength) +   0*strength).astype(np.uint8)
-            ret[:,:,1] = (177 * (1-strength) +   0*strength).astype(np.uint8)
-            ret[:,:,2] = (76  * (1-strength) + 255*strength).astype(np.uint8)
+            ret[:,:,0], ret[:,:,1], ret[:,:,2] = self.__get_phero_color(strength)
             return ret
 
         xleft, xright, ytop, ybottom = map(int, self.world_bounds)
@@ -228,6 +251,7 @@ class PygameVisualizer:
             self.profiler.start_profiling("pheromones")
             self.__draw_pheromones(realm)
             self.profiler.end_profiling("pheromones")
+            
 
         self.profiler.start_profiling("entities")
         for entities, sprite_name in self.targets:
@@ -248,6 +272,7 @@ class PygameVisualizer:
                             
         self.profiler.end_profiling("entities")
         self.__draw_legend()
+        self.__draw_pheromone_legend()
         pg.display.update()
         self.profiler.end_profiling("draw")
 
