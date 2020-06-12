@@ -23,8 +23,9 @@ def progress_time(realm, colonies):
     realm.update()
 
 def main(stepping = False):
-    realm = Realm(size=(1000, 1000))
-    antmath.build_antmath_matrix(50, 50)
+    realm = Realm(size=(1000, 1000))      
+    antmath.build_antmath_matrix(50, 50, "sniffmatrix")
+    antmath.build_antmath_matrix(10, 10, "trailmatrix")
     spawn_food(realm, count=200)
     colony = Colony(realm=realm, nest_position=(500,500), starting_ants = 20)
     colonies = [colony] # there is only one colony for now.

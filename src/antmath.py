@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 sniffmatrix = None
+trailmatrix = None
 
 """
     Directional reference:
@@ -69,6 +70,10 @@ def logistic(x, x0, L, k):
     x0 = 10
     """
     return L / (1 + np.e**(-k*(x-x0)))
+def complex_to_exponent(c):
+    dx = c.real
+    dy = c.imag
+    return direction_to_exponent(np.array([dy, dx]))
 
 def direction_to_exponent(array):
     """
@@ -94,15 +99,20 @@ def direction_to_exponent(array):
     
     raise ValueError("Could not find proper direction")
 
-def build_antmath_matrix(height, width):
+def build_antmath_matrix(height, width, which="sniffmatrix"):
     """
     this function must be run before using any antmath matrix operations.
     """
+    
     w = _build_weight_matrix(height, width)
     d = _build_direction_matrix(height, width)
     f = np.multiply(w, d)
-    global sniffmatrix
-    sniffmatrix = f
+    if which == "sniffmatrix":
+        global sniffmatrix
+        sniffmatrix = f
+    elif which == "trailmatrix":
+        global trailmatrix
+        trailmatrix = f
     return f
 
 if __name__ == "__main__":

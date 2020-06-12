@@ -153,22 +153,6 @@ class Ant(Entity):
                 self.make_pheromones()
                 self.walk()
 
-    def pheromone_gradient(self):
-        """
-        retrieves pheromone gradient in current position
-        returns magnitude of the gradient and direction (exponent form)
-        """
-        p = tuple(self.states["position"].astype(int))
-        grad_x = self.realm.gradient[0][p]
-        grad_y = self.realm.gradient[1][p]
-
-        g = grad_x + grad_y * 1j
-        mag = np.linalg.norm(g)
-        if mag > 0:
-            return mag, np.log(g/mag) * -1j # TODO figure out exact formula for this
-        else:
-            return mag, 0
-            
     def walk(self):
         """
         considering the current state of the and the surroundings, the ant can walk through the realm.
@@ -182,15 +166,17 @@ class Ant(Entity):
         # intermediate heading. Div 4 means restricting chaotic movement to 90 degrees.
         c_base = self.turning * 4 / self.chaotic_constant - 0.5
         r_base = np.random.rand() - 0.5
-        h_base = antmath.mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 4 
+        h_base = antmath.mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 8 
         self.heading += h_base # basic "noise" injection from the previous heading.
 
         if self.mode == AntModes.searching:
             s_base, mag_sniff = self.sniff()
+
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
-                self.set_arrows("sniff", s_base, (255, 0, 0), mag_sniff)
+                m = antmath.logistic(mag_sniff, 0, 20, 0.1) - 10
+                self.set_arrows("sniff", s_base, (255, 0, 0), m)
                 # not implemented yet.
-                intensity = 0. #FIXME
+                intensity = 0.5 #FIXME
                 self.heading = antmath.mix([self.heading, 1-intensity], [s_base, intensity])
 
         elif self.mode == AntModes.returning: # when heading home, ants know where the home is.
@@ -234,6 +220,12 @@ class Ant(Entity):
                 return food
         return 0
 
+    def get_current_slice(self, r):
+        p = self.states["position"].astype(int)
+        left, right = p[0] - r, p[0] + r
+        top, bottom = p[1] - r, p[1] + r
+        return self.realm.land[left:right, top:bottom]
+
     def sniff(self):
         """
         returns imaginary direction of the deterimined "strongest smell"
@@ -242,22 +234,23 @@ class Ant(Entity):
         warning: this method does not consider that the sniffmatrix can be outside of map.
         index can get out of bound when an ant is nearby the edge.
         """
-        assert self.mode != AntModes.returning
-        p = self.states["position"].astype(int)
-        left, right = p[0] - self.smell_range, p[0] + self.smell_range
-        top, bottom = p[1] - self.smell_range, p[1] + self.smell_range
-        current_slice = self.realm.land[left:right, top:bottom]
-        
-        raw_matrix = np.multiply(current_slice, antmath.sniffmatrix)
-        raw_sum = np.sum(raw_matrix)
-        raw_intensity = np.linalg.norm(raw_sum)
-        
+        def matrix_sum(a, m):
+            return np.sum(np.multiply(a, m))
 
-        if raw_intensity > 0.1:
-            direction = antmath.imag_to_array(raw_sum)
-            return (antmath.direction_to_exponent(direction))%1, np.linalg.norm(raw_sum)
-        else:
-            return 0, 0
+        def amount(x):
+            return np.linalg.norm(x)
+
+        current_slice = self.get_current_slice(self.smell_range//5)
+        current_sum = matrix_sum(current_slice, antmath.trailmatrix)
+
+        if amount(current_sum) < 0.1:
+            #the ant is not on trail, switching to remote sensing
+            current_slice = self.get_current_slice(self.smell_range)
+            current_sum = matrix_sum(current_slice, antmath.sniffmatrix)
+            if amount(current_sum) < 0.1:
+                return 0, 0
+        
+        return antmath.complex_to_exponent(current_sum), amount(current_sum)
 
     def grab(self, food):
         """
