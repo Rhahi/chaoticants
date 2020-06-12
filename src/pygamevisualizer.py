@@ -170,7 +170,6 @@ class PygameVisualizer:
         self.debug_vector_scaling = 1000
 
     def __draw_pheromones(self, realm):
-        clamp = 255
         def scale_color(image):
             w, h = image.shape
             ret = np.empty((w,h,3), dtype=np.uint8)
@@ -182,10 +181,13 @@ class PygameVisualizer:
 
         xleft, xright, ytop, ybottom = map(int, self.world_bounds)
         array = realm.land[xleft+1:xright-1,ytop+1:ybottom-1]
+        self.profiler.start_profiling("make surf")
         surf = pg.surfarray.make_surface(scale_color(array))
-        surf.set_colorkey((clamp,clamp,clamp))
-        full_surf = pg.transform.scale(surf, self.screen.get_size())
-        self.screen.blit(full_surf, (0, 0))
+        self.profiler.end_profiling("make surf")
+        self.profiler.start_profiling("scaling")
+        full_surf = pg.transform.scale(surf, self.screen.get_size(), self.screen)
+        self.profiler.end_profiling("scaling")
+        #self.screen.blit(full_surf, (0, 0))
 
     def __is_on_screen(self, pos):
         xleft, xright, ytop, ybottom = self.world_bounds
@@ -227,7 +229,6 @@ class PygameVisualizer:
         
     def __draw(self, realm=None):
         self.profiler.start_profiling("draw")
-        self.screen.fill((34, 177, 76))
         if realm:
             self.profiler.start_profiling("pheromones")
             self.__draw_pheromones(realm)
