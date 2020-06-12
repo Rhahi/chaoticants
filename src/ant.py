@@ -168,6 +168,7 @@ class Ant(Entity):
             return mag, np.log(g/mag) * -1j # TODO figure out exact formula for this
         else:
             return mag, 0
+            
     def walk(self):
         """
         considering the current state of the and the surroundings, the ant can walk through the realm.

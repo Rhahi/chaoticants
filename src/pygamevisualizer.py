@@ -208,7 +208,7 @@ class PygameVisualizer:
             color = self.debug_legend_data[dd]["color"]
             text = font.render(dd, True, color)
             self.screen.blit(text, next_pos)
-            next_pos = (0, text.get_height())
+            next_pos = (next_pos[0], next_pos[1] + text.get_height())
         
     def __draw_debug(self, ent, pos):
         if not self.debug_mode:
