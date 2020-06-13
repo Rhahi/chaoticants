@@ -24,18 +24,36 @@ def progress_time(realm, colonies):
 
 def main(stepping = False):
     realm = Realm(size=(1000, 1000))      
-    antmath.build_antmath_matrix(50, 50, "sniffmatrix")
-    antmath.build_antmath_matrix(10, 10, "trailmatrix")
+    antmath.build_antmath_matrix(50, 50)
+    antmath.build_trail_matrix(10, 10)
     spawn_food(realm, count=200)
     colony = Colony(realm=realm, nest_position=(500,500), starting_ants = 20)
     colonies = [colony] # there is only one colony for now.
     
-    pgv = PygameVisualizer([(realm.food_list, "food.png")] + [(colonies, "home.png")] + [(colony.ants, "ant.png") for colony in colonies] )
+    ants = []
+    ants_with_food = []
+
+    pgv = PygameVisualizer(
+        [(realm.food_list, "food.png")]
+        + [(colonies, "home.png")]
+        + [(ants, "ant.png")]
+        + [(ants_with_food, "ant_red.png")]
+        )
     pgv.camera.middle = tuple(colony.position)
 
     while True:
         progress_time(realm, colonies)
         pgv.step_frame(realm)
+        
+        ants[:] = []
+        ants_with_food[:] = []
+
+        for colony in colonies:
+            a = [ant for ant in colony.ants if ant.states["food"] == 0]
+            af = [ant for ant in colony.ants if ant.states["food"] != 0]
+            ants += a
+            ants_with_food += af
+
         if stepping:
             import msvcrt
             msvcrt.getch()

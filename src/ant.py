@@ -158,6 +158,11 @@ class Ant(Entity):
         considering the current state of the and the surroundings, the ant can walk through the realm.
         this will set its next position state, which gets updated when update() is called.
         """
+        def angle_towards(heading, target, maxturn=0.2, mix=1):
+            diff = target - heading
+            if abs(diff) > maxturn: diff = maxturn * diff / abs(diff)
+            return antmath.mix([0, 1-mix], [diff, mix])
+        
         self.clear_arrows()
 
         # chaotic turning
@@ -176,11 +181,10 @@ class Ant(Entity):
                 m = antmath.logistic(mag_sniff, 0, 20, 0.1) - 10
                 self.set_arrows("sniff", s_base, (255, 0, 0), m)
                 # not implemented yet.
-                intensity = 0.5 #FIXME
-                self.heading = antmath.mix([self.heading, 1-intensity], [s_base, intensity])
+                self.heading += angle_towards(self.heading, s_base)
 
         elif self.mode == AntModes.returning: # when heading home, ants know where the home is.
-            self.heading = antmath.mix([self.direction_to_home(), self.mix_home], [self.heading, 1-self.mix_home])
+            self.heading += angle_towards(self.heading, self.direction_to_home())
 
         h = antmath.imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed

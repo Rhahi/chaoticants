@@ -32,6 +32,18 @@ def _build_weight_matrix(height, width):
 
     return matrix
 
+def _build_weight_trail_matrix(height, width):
+    center = np.array([height//2, width//2])
+    base_weight = 100
+
+    matrix = np.zeros((height, width))
+    for ix, iy in np.ndindex(matrix.shape):
+        dist = np.linalg.norm(center - (ix, iy))
+        if dist == 0: continue
+        matrix[ix, iy] = round(base_weight / dist,2)
+
+    return matrix
+
 def _build_direction_matrix(height, width):
     center = np.array([height//2, width//2])
     
@@ -99,7 +111,7 @@ def direction_to_exponent(array):
     
     raise ValueError("Could not find proper direction")
 
-def build_antmath_matrix(height, width, which="sniffmatrix"):
+def build_antmath_matrix(height, width):
     """
     this function must be run before using any antmath matrix operations.
     """
@@ -107,12 +119,19 @@ def build_antmath_matrix(height, width, which="sniffmatrix"):
     w = _build_weight_matrix(height, width)
     d = _build_direction_matrix(height, width)
     f = np.multiply(w, d)
-    if which == "sniffmatrix":
-        global sniffmatrix
-        sniffmatrix = f
-    elif which == "trailmatrix":
-        global trailmatrix
-        trailmatrix = f
+    global sniffmatrix
+    sniffmatrix = f
+    return f
+
+def build_trail_matrix(height, width):
+    """
+    this function must be run before using any antmath matrix operations.
+    """
+    w = _build_weight_trail_matrix(height, width)
+    d = _build_direction_matrix(height, width)
+    f = np.multiply(w, d)
+    global trailmatrix
+    trailmatrix = f
     return f
 
 if __name__ == "__main__":
