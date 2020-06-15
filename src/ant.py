@@ -115,7 +115,7 @@ class Ant(Entity):
 
         # constants to be tuned
         self.grab_amount = 10
-        self.pheromone_amount = 50
+        self.pheromone_amount = 10
         self.walk_speed = 1
         self.chaotic_constant = chaotic_constant
         self.smell_range = 25
@@ -138,10 +138,13 @@ class Ant(Entity):
         defines the core behaviour of the ant, including foraging, homing, etc.
         """
         if self.mode == AntModes.searching:
-            food = self.search_food()
+            food, dist = self.search_food()
             if food:
-                self.grab(food)
-                self.mode = AntModes.returning
+                if dist < self.smell_range / 2:
+                    self.grab(food)
+                    self.mode = AntModes.returning
+                else:
+                    self.walk(food.position)
             else:
                 self.walk()
 
@@ -151,40 +154,38 @@ class Ant(Entity):
                 self.mode = AntModes.searching
             else:
                 self.make_pheromones()
-                self.walk()
+                self.walk(self.nest.position)
 
-    def walk(self):
+    def walk(self, target=None):
         """
         considering the current state of the and the surroundings, the ant can walk through the realm.
         this will set its next position state, which gets updated when update() is called.
         """
-        def angle_towards(heading, target, maxturn=0.2, mix=1):
+        self.clear_arrows()
+        def angle_towards(heading, target, maxturn=0.05, mix=1):
             diff = target - heading
             if abs(diff) > maxturn: diff = maxturn * diff / abs(diff)
             return antmath.mix([0, 1-mix], [diff, mix])
         
-        self.clear_arrows()
-
         # chaotic turning
         self.turning = self.chaotic_constant * self.turning * (1 - self.turning)
 
-        # intermediate heading. Div 4 means restricting chaotic movement to 90 degrees.
+        # intermediate heading.
         c_base = self.turning * 4 / self.chaotic_constant - 0.5
         r_base = np.random.rand() - 0.5
-        h_base = antmath.mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 8 
+        h_base = antmath.mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 10 # division limits the maximum angle
         self.heading += h_base # basic "noise" injection from the previous heading.
 
-        if self.mode == AntModes.searching:
+        if target is None:
             s_base, mag_sniff = self.sniff()
 
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
                 m = antmath.logistic(mag_sniff, 0, 20, 0.1) - 10
                 self.set_arrows("sniff", s_base, (255, 0, 0), m)
-                # not implemented yet.
                 self.heading += angle_towards(self.heading, s_base)
 
-        elif self.mode == AntModes.returning: # when heading home, ants know where the home is.
-            self.heading += angle_towards(self.heading, self.direction_to_home())
+        else:
+            self.heading += angle_towards(self.heading, self.direction_to_target(target))
 
         h = antmath.imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
@@ -196,10 +197,9 @@ class Ant(Entity):
         else:
             raise IndexError("The ant has escaped the map")
 
-    def direction_to_home(self):
+    def direction_to_target(self, target):
         p = self.states["position"]
-        h = self.nest.position
-        return antmath.direction_to_exponent(h-p)
+        return antmath.direction_to_exponent(target-p)
 
     def make_pheromones(self):
         # create pheromone in current position.
@@ -215,14 +215,15 @@ class Ant(Entity):
         """
         Looks for food in the nearby region.
         This method loops through all the food in the list, checks if it is nearby, and take it.
+        also returns the distance and direction towards the nearby food.
         """
         p = self.states["position"]
         for food in self.realm.food_list:
             location = food.position
             dist = np.linalg.norm(p - location)
-            if dist < np.sqrt(food.amount):
-                return food
-        return 0
+            if dist < self.smell_range:
+                return food, dist
+        return None, None
 
     def get_current_slice(self, r):
         p = self.states["position"].astype(int)

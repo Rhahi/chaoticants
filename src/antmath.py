@@ -33,14 +33,17 @@ def _build_weight_matrix(height, width):
     return matrix
 
 def _build_weight_trail_matrix(height, width):
+    def curve(f):
+        # inspired from black body radiation. not related to physics itself; I just wanted the curve.
+        return f**3 / (np.e**(f*1) - 1)
+
     center = np.array([height//2, width//2])
-    base_weight = 100
 
     matrix = np.zeros((height, width))
     for ix, iy in np.ndindex(matrix.shape):
         dist = np.linalg.norm(center - (ix, iy))
         if dist == 0: continue
-        matrix[ix, iy] = round(base_weight / dist,2)
+        matrix[ix, iy] = curve(dist)
 
     return matrix
 
