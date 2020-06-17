@@ -5,6 +5,9 @@ import sys
 import numpy as np
 import random
 import antmath
+import os
+
+ASSETS_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'assets')
 
 def spawn_food(realm, count):
     for _ in range(count):
@@ -33,10 +36,10 @@ def main(stepping = False):
     ants_with_food = []
 
     pgv = PygameVisualizer(
-        [(realm.food_list, "food.png")]
-        + [(colonies, "home.png")]
-        + [(ants, "ant.png")]
-        + [(ants_with_food, "ant_red.png")]
+        [(realm.food_list, os.path.join(ASSETS_PATH, "food.png"))]
+        + [(colonies, os.path.join(ASSETS_PATH, "home.png"))]
+        + [(ants, os.path.join(ASSETS_PATH, "ant.png"))]
+        + [(ants_with_food, os.path.join(ASSETS_PATH, "ant_with_food.png"))]
         )
     pgv.camera.middle = tuple(colony.position)
 
