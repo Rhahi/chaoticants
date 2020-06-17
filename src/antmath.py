@@ -20,30 +20,51 @@ trailmatrix = None
     (1j, 0) -> right
 """
 
+def detect_straight_line(image):
+    """
+    gets a 2d numpy array and returns the inclination of the most likely line.
+    assumes that there is only one line.
+    """
+    a = np.argmax(image, axis=0) #[i, x]
+    b = np.array(np.argmax(image, axis=1)) #[y, i]
+    x_raw = np.concatenate((np.arange(len(a)), b))
+    y_raw = np.concatenate((a, np.arange(len(b))))
+    x = []
+    y = []
+
+    assert len(x_raw) == len(y_raw)
+    edge = len(x_raw)
+
+    for i in range(edge):
+        #remove the first edges, since having no maximum will return the first arg as argmax.
+        xr = x_raw[i]
+        yr = y_raw[i]
+        if xr == 0 or yr == 0:
+            continue
+        x.append(xr)
+        y.append(yr)
+
+    if len(x) > 3:
+        if np.std(x) >= np.std(y):
+            inc = np.polyfit(x, y, deg=1)[0]
+            incj = np.cos(inc) + np.sin(inc)*1j
+        else:
+            inc = np.polyfit(y, x, deg=1)[0]
+            incj = np.sin(inc) + np.cos(inc)*1j 
+
+        return complex_to_exponent(incj)
+    else:
+        return None
+
 def _build_weight_matrix(height, width):
     center = np.array([height//2, width//2])
-    base_weight = 100
+    base_weight = 2
 
     matrix = np.zeros((height, width))
     for ix, iy in np.ndindex(matrix.shape):
         dist = np.linalg.norm(center - (ix, iy))
         if dist == 0: continue
         matrix[ix, iy] = round(base_weight / dist,2)
-
-    return matrix
-
-def _build_weight_trail_matrix(height, width):
-    def curve(f):
-        # inspired from black body radiation. not related to physics itself; I just wanted the curve.
-        return f**3 / (np.e**(f*1) - 1)
-
-    center = np.array([height//2, width//2])
-
-    matrix = np.zeros((height, width))
-    for ix, iy in np.ndindex(matrix.shape):
-        dist = np.linalg.norm(center - (ix, iy))
-        if dist == 0: continue
-        matrix[ix, iy] = curve(dist)
 
     return matrix
 
@@ -126,18 +147,17 @@ def build_antmath_matrix(height, width):
     sniffmatrix = f
     return f
 
-def build_trail_matrix(height, width):
-    """
-    this function must be run before using any antmath matrix operations.
-    """
-    w = _build_weight_trail_matrix(height, width)
-    d = _build_direction_matrix(height, width)
-    f = np.multiply(w, d)
-    global trailmatrix
-    trailmatrix = f
-    return f
-
 if __name__ == "__main__":
-    w = _build_weight_matrix(5, 5)
-    d = _build_direction_matrix(5, 5)
-    print(np.multiply(w, d))
+    a = np.zeros((50,50))
+    b = np.zeros((50,50))
+    c = np.zeros((50,50))
+    
+    a[25,:] += 10
+    print(detect_straight_line(a))
+
+    b[:,25] += 10
+    print(detect_straight_line(b))
+    
+    for i in range(50):
+        c[i,i] += 10
+    print(detect_straight_line(c), 1/8)

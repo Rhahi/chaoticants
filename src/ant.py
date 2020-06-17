@@ -178,19 +178,15 @@ class Ant(Entity):
 
         if target is None:
             s_base, mag_sniff = self.sniff()
-
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
-                m = antmath.logistic(mag_sniff, 0, 20, 0.1) - 10
-                self.set_arrows("sniff", s_base, (255, 0, 0), m)
                 self.heading += angle_towards(self.heading, s_base)
-
         else:
             self.heading += angle_towards(self.heading, self.direction_to_target(target))
 
         h = antmath.imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
 
-        self.set_arrows("heading", self.heading, (0,0,255), 10)
+        self.set_arrows("heading", self.heading, (0,0,255), 2)
 
         if self.realm.check_boundary(next_position):
             self.next_states["position"] = next_position
@@ -244,18 +240,31 @@ class Ant(Entity):
 
         def amount(x):
             return np.linalg.norm(x)
-
-        current_slice = self.get_current_slice(self.smell_range//5)
-        current_sum = matrix_sum(current_slice, antmath.trailmatrix)
-
-        if amount(current_sum) < 0.1:
-            #the ant is not on trail, switching to remote sensing
-            current_slice = self.get_current_slice(self.smell_range)
-            current_sum = matrix_sum(current_slice, antmath.sniffmatrix)
-            if amount(current_sum) < 0.1:
-                return 0, 0
         
-        return antmath.complex_to_exponent(current_sum), amount(current_sum)
+        # start by assuming that the ant is on a trail
+        smaller_slice = self.get_current_slice(self.smell_range//5)
+        line = antmath.detect_straight_line(smaller_slice)
+        if line:
+            dth = self.direction_to_target(self.nest.position)
+            if abs(dth-line) < 0.25: #line direction is towards home
+                direction = (line + 0.5)%1
+            else:
+                direction = line
+            magnitude = np.sum(smaller_slice)
+            self.set_arrows("sniff", direction, (255, 0, 0), magnitude/20)
+            return direction, magnitude
+        else:
+            bigger_slice = self.get_current_slice(self.smell_range)
+            direction_raw = matrix_sum(bigger_slice, antmath.sniffmatrix)
+            magnitude = amount(direction_raw)
+
+            if magnitude > 0.1:
+                direction = antmath.complex_to_exponent(direction_raw)
+                self.set_arrows("sniff", direction, (255, 255, 0), magnitude/20)
+                return direction, magnitude
+            else:
+                # there is no pheromone nearby
+                return 0, 0
 
     def grab(self, food):
         """
