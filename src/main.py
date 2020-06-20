@@ -9,13 +9,33 @@ import os
 
 ASSETS_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'assets')
 
-def spawn_food(realm, count):
+def spawn_random_food(realm, count):
     for _ in range(count):
         position = np.array(realm.land.shape) * np.random.rand(2)
         amount = int(np.random.rand() * 50 + 50)
-
         realm.spawn_food(position, amount)
 
+def spawn_predefined_food(realm, center, pattern):
+    food_patterns = {
+        "equal-cross": [
+            [center+(0,100), 500],
+            #[center+(0,-100), 500],
+            #[center+(100,0), 500],
+            #[center+(-100,0), 500]
+        ],
+        "skewed-cross": [
+            [center+(0,100), 100],
+            [center+(0,-100), 1000],
+            [center+(100,0), 200],
+            [center+(-100,0), 200]
+        ],
+    }
+    if pattern in food_patterns:
+        for position, amount in food_patterns[pattern]:
+            realm.spawn_food(position, amount)
+    else:
+        raise ValueError("Undefined pattern")
+    
 def progress_time(realm, colonies):
     for colony in colonies:
         for ant in colony.ants:
@@ -28,9 +48,12 @@ def progress_time(realm, colonies):
 def main(stepping = False):
     realm = Realm(size=(1000, 1000))      
     antmath.build_antmath_matrix(50, 50)
-    spawn_food(realm, count=200)
-    colony = Colony(realm=realm, nest_position=(500,500), starting_ants = 50)
+    
+    colony = Colony(realm=realm, nest_position=(500,500), starting_ants = 50, chaotic_constant=4)
     colonies = [colony] # there is only one colony for now.
+
+    #spawn_random_food(realm, count=200)
+    spawn_predefined_food(realm, center=colony.position, pattern="equal-cross")
     
     ants = []
     ants_with_food = []
@@ -59,6 +82,12 @@ def main(stepping = False):
         if stepping:
             import msvcrt
             msvcrt.getch()
+
+        
+
+        if len(realm.food_list) == 0:
+            print("simulation ended after", realm.time, "ticks.")
+            break
 
 
 if __name__ == "__main__":

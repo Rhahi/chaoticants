@@ -124,9 +124,8 @@ class Ant(Entity):
         
         # states of the ant
         self.heading = np.random.rand()
-        self.turning = np.random.rand() / 10
+        self.turning = np.random.rand()
         self._create_state("position", np.array(nest.position))
-        #self._create_state("fatigue", 0) # fatigue is turned off as it does nothing right now.
         self._create_state("food", 0)
         self.mode = AntModes.searching
 
@@ -174,19 +173,22 @@ class Ant(Entity):
         c_base = self.turning * 4 / self.chaotic_constant - 0.5
         r_base = np.random.rand() - 0.5
         h_base = antmath.mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 10 # division limits the maximum angle
-        self.heading += h_base # basic "noise" injection from the previous heading.
+        self.heading += h_base # prenoise
 
         if target is None:
             s_base, mag_sniff = self.sniff()
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
-                self.heading += angle_towards(self.heading, s_base)
+                self.heading += angle_towards(self.heading, s_base, mix=0.5)
         else:
-            self.heading += angle_towards(self.heading, self.direction_to_target(target))
+            self.heading += angle_towards(self.heading, self.direction_to_target(target), maxturn=0.2, mix=1)
 
+        # NOTE: when chaotic turning is added after the angle towards home was added,
+        #       it was observed that some "locked" turning will make ants eject towards one direction, spiraling.
+        #       This is probably due to the chaotic turning approaching a fixed point.
+        
         h = antmath.imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
-
-        self.set_arrows("heading", self.heading, (0,0,255), 2)
+        self.set_arrows("heading", self.heading, (0,0,255), 3)
 
         if self.realm.check_boundary(next_position):
             self.next_states["position"] = next_position
@@ -222,6 +224,7 @@ class Ant(Entity):
         return None, None
 
     def get_current_slice(self, r):
+        #BUG
         p = self.states["position"].astype(int)
         left, right = p[0] - r, p[0] + r
         top, bottom = p[1] - r, p[1] + r
@@ -236,6 +239,8 @@ class Ant(Entity):
         index can get out of bound when an ant is nearby the edge.
         """
         def matrix_sum(a, m):
+            if a.shape != m.shape:
+                print(self.states["position"])
             return np.sum(np.multiply(a, m))
 
         def amount(x):
@@ -251,7 +256,7 @@ class Ant(Entity):
             else:
                 direction = line
             magnitude = np.sum(smaller_slice)
-            self.set_arrows("sniff", direction, (255, 0, 0), magnitude/20)
+            self.set_arrows("sniff", direction, (255, 0, 0), magnitude/10)
             return direction, magnitude
         else:
             bigger_slice = self.get_current_slice(self.smell_range)
@@ -299,7 +304,7 @@ class Ant(Entity):
         
 
 class Colony(Entity):
-    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0, noise=0):
+    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0, noise=0, chaotic_constant=4):
         """
         [static states]
         position: the position of the nest on the map
@@ -309,15 +314,14 @@ class Colony(Entity):
         ants: list of ants that belong to this colony
         new-ants: new ants that are going to added in the next tick
         
-        [variable states]
-        stored-food
+        Chaotic constant other than 4 should not be used.
         """
         super(Colony, self).__init__(realm)
         #static states
         self.position = np.array(nest_position)
         self.range = 10 # MAGIC NUMBER; the distance it is considered for ants to be "home"
         self.mix_noise = noise # how much noise to inject to the chaotic function.
-        self.mix_returning = 1
+        self.chaotic_constant = chaotic_constant
         
         #children entities
         self.ants = []
@@ -358,7 +362,14 @@ class Colony(Entity):
     def update(self):
         # apply all the actions currents made
         for ant in self.ants:
-            ant.update()
+            lenbefore=len(self.ants)
+            if np.linalg.norm(ant.states["position"] - self.position) > min(self.realm.land.shape)/2 - 60:
+                print("an ant was removed because it was near the boundary")
+                print(f"Turning: {ant.turning}, heading: {ant.heading}, other states: {ant.states}")
+                self.ants.remove(ant)
+                assert len(self.ants) != lenbefore
+            else:
+                ant.update()
 
         # add newborn ants to the roster
         self.ants += self.new_ants
@@ -370,7 +381,7 @@ class Colony(Entity):
 
     def spawn_ant(self):
         # add newborn ants to the list to be added during the next update tick
-        self.new_ants.append(Ant(self))
+        self.new_ants.append(Ant(self, self.chaotic_constant))
 
     def get_position(self):
         return (self.position[0], self.position[1])
