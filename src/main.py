@@ -63,7 +63,8 @@ def main(stepping = False):
         [(realm.food_list, os.path.join(ASSETS_PATH, "food.png"))]
         + [(colonies, os.path.join(ASSETS_PATH, "home.png"))]
         + [(ants, os.path.join(ASSETS_PATH, "ant.png"))]
-        + [(ants_with_food, os.path.join(ASSETS_PATH, "ant_with_food.png"))]
+        + [(ants_with_food, os.path.join(ASSETS_PATH, "ant_with_food.png"))],
+        tickrate=0 #zero means that there is no framerate cap
         )
     pgv.camera.middle = tuple(colony.position)
 
