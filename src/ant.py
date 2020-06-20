@@ -33,14 +33,14 @@ class Realm():
     The world where our ants and nests live in.
     Time is defined here, so that we don't need to define a global time variable.
     """
-    def __init__(self, size):
+    def __init__(self, size, evaporation=0.95):
         self.time = 0
         self.time_increment = 1 # the amount of time to progress per tick.
         
         self.land = np.zeros(size)
         self.next_land_queue = SimpleQueue()
 
-        self.evaporate_rate = 0.95 # TODO fix magic number
+        self.evaporate_rate = evaporation
         self.food_list = []
         self.flag_food_removed = False
 
@@ -118,7 +118,7 @@ class Ant(Entity):
         self.pheromone_amount = 10
         self.walk_speed = 1
         self.chaotic_constant = chaotic_constant
-        self.smell_range = 25
+        self.smell_range = self.nest.sniff_radius
         self.threshold_sniff = 1
         self.mix_home = 0.5
         
@@ -163,6 +163,7 @@ class Ant(Entity):
         self.clear_arrows()
         def angle_towards(heading, target, maxturn=0.05, mix=1):
             diff = target - heading
+            if abs(diff) > 0.5: diff -= 1 * diff / abs(diff)
             if abs(diff) > maxturn: diff = maxturn * diff / abs(diff)
             return antmath.mix([0, 1-mix], [diff, mix])
         
@@ -172,7 +173,7 @@ class Ant(Entity):
         # intermediate heading.
         c_base = self.turning * 4 / self.chaotic_constant - 0.5
         r_base = np.random.rand() - 0.5
-        h_base = antmath.mix([c_base, 1-self.nest.mix_noise], [r_base, self.nest.mix_noise]) / 10 # division limits the maximum angle
+        h_base = antmath.mix([c_base, 1-self.nest.noise], [r_base, self.nest.noise]) / 10 # division limits the maximum angle
         self.heading += h_base # prenoise
 
         if target is None:
@@ -180,15 +181,15 @@ class Ant(Entity):
             if mag_sniff > self.threshold_sniff: # the ant has sniffed anything of significance.
                 self.heading += angle_towards(self.heading, s_base, mix=0.5)
         else:
-            self.heading += angle_towards(self.heading, self.direction_to_target(target), maxturn=0.2, mix=1)
+            self.set_arrows("pre-heading", self.heading, (255,255,255), 3)
+            self.heading += angle_towards(self.heading, self.direction_to_target(target), maxturn=0.2, mix=0.8)
 
-        # NOTE: when chaotic turning is added after the angle towards home was added,
-        #       it was observed that some "locked" turning will make ants eject towards one direction, spiraling.
-        #       This is probably due to the chaotic turning approaching a fixed point.
-        
         h = antmath.imag_to_array(np.e ** (2j * np.pi * self.heading))
         next_position = self.states["position"] + antmath.unitvector(h) * self.walk_speed
+        
         self.set_arrows("heading", self.heading, (0,0,255), 3)
+        if np.linalg.norm(self.states["position"] - self.nest.position) > 1:
+            self.set_arrows("home", self.direction_to_target(self.nest.position), (0,255,255), 5)
 
         if self.realm.check_boundary(next_position):
             self.next_states["position"] = next_position
@@ -304,7 +305,9 @@ class Ant(Entity):
         
 
 class Colony(Entity):
-    def __init__(self, realm, nest_position, starting_ants=0, starting_food=0, noise=0, chaotic_constant=4):
+    def __init__(self, realm, nest_position, sniff_radius,
+        starting_ants=0, starting_food=0,
+        noise=0, chaotic_constant=4):
         """
         [static states]
         position: the position of the nest on the map
@@ -320,8 +323,9 @@ class Colony(Entity):
         #static states
         self.position = np.array(nest_position)
         self.range = 10 # MAGIC NUMBER; the distance it is considered for ants to be "home"
-        self.mix_noise = noise # how much noise to inject to the chaotic function.
+        self.noise = noise # how much noise to inject to the chaotic function.
         self.chaotic_constant = chaotic_constant
+        self.sniff_radius = sniff_radius
         
         #children entities
         self.ants = []

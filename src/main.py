@@ -19,9 +19,9 @@ def spawn_predefined_food(realm, center, pattern):
     food_patterns = {
         "equal-cross": [
             [center+(0,100), 500],
-            #[center+(0,-100), 500],
-            #[center+(100,0), 500],
-            #[center+(-100,0), 500]
+            [center+(0,-100), 500],
+            [center+(100,0), 500],
+            [center+(-100,0), 500]
         ],
         "skewed-cross": [
             [center+(0,100), 100],
@@ -46,13 +46,14 @@ def progress_time(realm, colonies):
     realm.update()
 
 def main(stepping = False):
-    realm = Realm(size=(1000, 1000))      
-    antmath.build_antmath_matrix(50, 50)
+    realm = Realm(size=(1000, 1000), evaporation=0.99)
+    sniff_radius = 50      
+    antmath.build_antmath_matrix(sniff_radius*2, sniff_radius*2)
     
-    colony = Colony(realm=realm, nest_position=(500,500), starting_ants = 50, chaotic_constant=4)
+    colony = Colony(realm=realm, nest_position=(500,500), starting_ants=30, chaotic_constant=4, sniff_radius=sniff_radius)
     colonies = [colony] # there is only one colony for now.
 
-    #spawn_random_food(realm, count=200)
+    #spawn_random_food(realm, count=200) #uncomment this line to use random food distribution.
     spawn_predefined_food(realm, center=colony.position, pattern="equal-cross")
     
     ants = []
