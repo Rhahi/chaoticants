@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from scipy import stats
 
 sniffmatrix = None
-trailmatrix = None
 
 """
     Directional reference:
@@ -147,7 +147,41 @@ def build_antmath_matrix(height, width):
     sniffmatrix = f
     return f
 
+antmath_random = None
+antmath_samples = 1000
+def __prepare_random():
+    def logistic(x):
+        return 4*x*(1-x)
+
+    samples = 1000 #squared in the final result
+    init = np.linspace(0,1,samples+2)[1:-1] #exclude first and last
+    data = np.zeros((samples,samples))
+    data[0] = init
+    for i in range(samples-1):
+        data[i+1] = logistic(data[i])
+
+    h, b = np.histogram(data.reshape((samples**2,1)), bins=antmath_samples)
+    xk = tuple(b[:-1]+0.5)
+    pk = tuple(h/np.sum(h))
+
+    global antmath_random
+    antmath_random = stats.rv_discrete(name="custm", values=(range(len(pk)), pk))
+    
+def random():
+    if not antmath_random:
+        __prepare_random()
+    
+    res = antmath_random.rvs(size=1)
+    return res[0]/antmath_samples
+
 if __name__ == "__main__":
+    testlist = []
+    for i in range(10000):
+        testlist.append(random())
+    import matplotlib.pyplot as plt
+    plt.hist(testlist, bins=1000)
+    plt.show()
+    """
     a = np.zeros((50,50))
     b = np.zeros((50,50))
     c = np.zeros((50,50))
@@ -161,3 +195,4 @@ if __name__ == "__main__":
     for i in range(50):
         c[i,i] += 10
     print(detect_straight_line(c), 1/8)
+    """

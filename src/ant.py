@@ -125,6 +125,7 @@ class Ant(Entity):
         # states of the ant
         self.heading = np.random.rand()
         self.turning = np.random.rand()
+        while self.turning == 0: self.turning = np.random.rand()
         self._create_state("position", np.array(nest.position))
         self._create_state("food", 0)
         self.mode = AntModes.searching
@@ -172,7 +173,7 @@ class Ant(Entity):
 
         # intermediate heading.
         c_base = self.turning * 4 / self.chaotic_constant - 0.5
-        r_base = np.random.rand() - 0.5
+        r_base = antmath.random() - 0.5
         h_base = antmath.mix([c_base, 1-self.nest.noise], [r_base, self.nest.noise]) / 10 # division limits the maximum angle
         self.heading += h_base # prenoise
 
