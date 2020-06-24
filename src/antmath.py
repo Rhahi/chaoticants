@@ -58,12 +58,13 @@ def detect_straight_line(image):
 
 def _build_weight_matrix(height, width):
     center = np.array([height//2, width//2])
-    base_weight = 2
+    base_weight = 1
+    radius = min(height, width)
 
     matrix = np.zeros((height, width))
     for ix, iy in np.ndindex(matrix.shape):
         dist = np.linalg.norm(center - (ix, iy))
-        if dist == 0: continue
+        if dist == 0 or dist > radius: continue
         matrix[ix, iy] = round(base_weight / dist,2)
 
     return matrix
@@ -148,7 +149,7 @@ def build_antmath_matrix(height, width):
     return f
 
 antmath_random = None
-antmath_samples = 1000
+antmath_bins = None
 def __prepare_random():
     def logistic(x):
         return 4*x*(1-x)
@@ -160,19 +161,21 @@ def __prepare_random():
     for i in range(samples-1):
         data[i+1] = logistic(data[i])
 
-    h, b = np.histogram(data.reshape((samples**2,1)), bins=antmath_samples)
-    xk = tuple(b[:-1]+0.5)
+    global antmath_bins
+    h, b = np.histogram(data.reshape((samples**2,1)), bins=1000)
     pk = tuple(h/np.sum(h))
+    xk = range(len(pk))
 
     global antmath_random
-    antmath_random = stats.rv_discrete(name="custm", values=(range(len(pk)), pk))
+    antmath_bins = len(pk)
+    antmath_random = stats.rv_discrete(name="custm", values=(xk, pk))
     
 def random():
     if not antmath_random:
         __prepare_random()
     
     res = antmath_random.rvs(size=1)
-    return res[0]/antmath_samples
+    return res[0]/antmath_bins
 
 if __name__ == "__main__":
     testlist = []

@@ -119,6 +119,7 @@ class Ant(Entity):
         self.walk_speed = 1
         self.chaotic_constant = chaotic_constant
         self.smell_range = self.nest.sniff_radius
+        self.food_range = self.nest.food_radius
         self.threshold_sniff = 1
         self.mix_home = 0.5
         
@@ -140,7 +141,7 @@ class Ant(Entity):
         if self.mode == AntModes.searching:
             food, dist = self.search_food()
             if food:
-                if dist < self.smell_range / 2:
+                if dist < max(3, min(np.sqrt(food.amount)/2, self.food_range/2)):
                     self.grab(food)
                     self.mode = AntModes.returning
                 else:
@@ -221,7 +222,7 @@ class Ant(Entity):
         for food in self.realm.food_list:
             location = food.position
             dist = np.linalg.norm(p - location)
-            if dist < self.smell_range:
+            if dist < self.food_range:
                 return food, dist
         return None, None
 
@@ -306,7 +307,7 @@ class Ant(Entity):
         
 
 class Colony(Entity):
-    def __init__(self, realm, nest_position, sniff_radius,
+    def __init__(self, realm, nest_position, sniff_radius, food_radius,
         starting_ants=0, starting_food=0,
         noise=0, chaotic_constant=4):
         """
@@ -327,6 +328,7 @@ class Colony(Entity):
         self.noise = noise # how much noise to inject to the chaotic function.
         self.chaotic_constant = chaotic_constant
         self.sniff_radius = sniff_radius
+        self.food_radius = food_radius
         
         #children entities
         self.ants = []
