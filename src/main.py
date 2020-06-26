@@ -128,8 +128,8 @@ def main(stepping = False):
                 results.append(num_ticks)
                 break
 
-    print(f"\naverage time: {np.mean(results)}, noise:{noise_ratio}, configuration: \"{pattern_name}\",
-        \nall results: {results}")
+    print(f"""\naverage time: {np.mean(results)}, noise:{noise_ratio}, configuration: \"{pattern_name}\",
+        \nall results: {results}""")
 
 
 if __name__ == "__main__":
