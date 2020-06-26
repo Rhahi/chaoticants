@@ -80,17 +80,22 @@ def main(stepping = False):
     results = []
     
     for i in range(number_of_simulations):
+        # seed the simulation
         np.random.seed(seed_list[i])
+
+        # setup the colony
         antmath.build_antmath_matrix(sniff_radius*2, sniff_radius*2)
         colony = Colony(realm=realm, nest_position=nest_position,
             starting_ants=starting_ants, chaotic_constant=4, noise=noise_ratio,
             sniff_radius=sniff_radius, food_radius=food_radius)
         colonies = [colony] # there is only one colony for now.
         
+        # setup the food
         if pattern_name == "random":
             spawn_random_food(realm, count=10, total_amount=2000)
         else: spawn_predefined_food(realm, center=colony.position, pattern=pattern_name)
 
+        # running pygamevisualizer
         if use_visualiser:
             ants = []
             ants_with_food = []
@@ -104,20 +109,18 @@ def main(stepping = False):
                 )
             pgv.camera.middle = tuple(colony.position)
 
+        # simulation main loop
         while True:
             progress_time(realm, colonies)
             if use_visualiser:
                 pgv.step_frame(realm)
-            
                 ants[:] = []
                 ants_with_food[:] = []
-
                 for colony in colonies:
                     a = [ant for ant in colony.ants if ant.states["food"] == 0]
                     af = [ant for ant in colony.ants if ant.states["food"] != 0]
                     ants += a
                     ants_with_food += af
-
                 if stepping:
                     import msvcrt
                     msvcrt.getch()
@@ -128,9 +131,9 @@ def main(stepping = False):
                 results.append(num_ticks)
                 break
 
+    # simulation report
     print(f"""\naverage time: {np.mean(results)}, noise:{noise_ratio}, configuration: \"{pattern_name}\",
         \nall results: {results}""")
-
 
 if __name__ == "__main__":
     main("step" in sys.argv)
