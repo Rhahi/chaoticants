@@ -105,6 +105,7 @@ class Entity():
 class AntModes(Enum):
     searching = 1
     returning = 2
+    returning_due_to_distance = 3
 
 class Ant(Entity):
     def __init__(self, nest, chaotic_constant = 4):
@@ -122,6 +123,7 @@ class Ant(Entity):
         self.food_range = self.nest.food_radius
         self.threshold_sniff = 1
         self.mix_home = 0.5
+        self.too_far_away = 300
         
         # states of the ant
         self.heading = np.random.rand()
@@ -138,7 +140,7 @@ class Ant(Entity):
         """
         defines the core behaviour of the ant, including foraging, homing, etc.
         """
-        if self.mode == AntModes.searching:
+        def search_and_grab():
             food, dist = self.search_food()
             if food:
                 if dist < max(3, min(np.sqrt(food.amount)/2, self.food_range/2)):
@@ -146,8 +148,14 @@ class Ant(Entity):
                     self.mode = AntModes.returning
                 else:
                     self.walk(food.position)
-            else:
+                return True
+            return False
+
+        if self.mode == AntModes.searching:
+            if not search_and_grab():
                 self.walk()
+                if np.linalg.norm(self.states["position"] - self.nest.position) > self.too_far_away:
+                    self.mode = AntModes.returning_due_to_distance
 
         elif self.mode == AntModes.returning:
             if self.at_home():
@@ -156,6 +164,14 @@ class Ant(Entity):
             else:
                 self.make_pheromones()
                 self.walk(self.nest.position)
+
+        elif self.mode == AntModes.returning_due_to_distance:
+            if self.at_home():
+                self.drop()
+                self.mode = AntModes.searching
+            elif not search_and_grab():
+                self.walk(self.nest.position)
+
 
     def walk(self, target=None):
         """
