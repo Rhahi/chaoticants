@@ -65,25 +65,25 @@ def main(stepping = False):
     
     # experiment settings
     use_visualiser = True
-    number_of_simulations = 3
+    number_of_simulations = 1
     seed_list = np.linspace(1, number_of_simulations, number_of_simulations, dtype=int)
 
     # simulation settings
-    realm = Realm(size=realm_size, evaporation=0.99)
+    evaporation = 0.99
     sniff_radius = 50
     food_radius = 30
     starting_ants = 30
-    noise_ratio = 0.2
-    pattern_name = "quick-test"
+    noise_ratio = 0.5
+    pattern_name = "equal-cross"
     # end of settings section.
     
     results = []
-    
     for i in range(number_of_simulations):
         # seed the simulation
         np.random.seed(seed_list[i])
 
         # setup the colony
+        realm = Realm(size=realm_size, evaporation=evaporation)
         antmath.build_antmath_matrix(sniff_radius*2, sniff_radius*2)
         colony = Colony(realm=realm, nest_position=nest_position,
             starting_ants=starting_ants, chaotic_constant=4, noise=noise_ratio,
@@ -127,7 +127,7 @@ def main(stepping = False):
 
             if len(realm.food_list) == 0:
                 num_ticks = realm.time
-                print("simulation ended after", num_ticks, "ticks.")
+                print(f"{i}/{number_of_simulations}, simulation ended after {num_ticks} ticks.")
                 results.append(num_ticks)
                 break
 
