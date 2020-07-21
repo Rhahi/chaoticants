@@ -9,9 +9,14 @@ The project simulates a group of ant-like agents. During their initial serach at
 * Python 3.8+
 * Numpy
 * Pygame
+* Scipy
+
+Simply using pip install command on the three packages will do. (Requires you to have [pip](https://pip.pypa.io/en/stable/installing/) installed.)
+If it doesn't work, you may use `python -m pip install -r requirements.txt` to match the versions to match the developed version.
 
 ## Running simulation
 
+* Configure options in main.py. By default, visualiser is enabled and only one experiment will run.
 * Run main.py
 * To scroll across the map, click and drag. WASD can also be used.
 * Mouse scroll zooms in and out.
